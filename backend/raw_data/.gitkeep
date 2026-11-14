@@ -1,0 +1,2 @@
+# Esta carpeta almacena los archivos GeoTIFF (.tif) originales y pesados descargados de NASA Moon Trek (LOLA DEM, LROC WAC).
+# Los archivos .tif y .tiff están ignorados en Git por .gitignore para no saturar el repositorio.
