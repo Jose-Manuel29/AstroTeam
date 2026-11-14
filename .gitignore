@@ -39,3 +39,11 @@ venv.bak/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Node / Frontend build artifacts
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+*.log
+

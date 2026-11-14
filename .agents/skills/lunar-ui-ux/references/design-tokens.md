@@ -28,19 +28,16 @@ Estándar de diseño para la interfaz del Visualizador del Polo Sur Lunar. Compa
 
 ---
 
-## 2. Tipografía y Jerarquías
+## 2. Tipografía y Jerarquías (Cyber-Aeroespacial & Brutalist)
 
-### Stack Tipográfico Recomendado
-- **Titulares & Display (Geométrica Pesada):**
-  - Fuente: `Space Grotesk`, `Cabinet Grotesk` o `Outfit`
-  - Pesos: `700 (Bold)`, `800 (ExtraBold)`, `900 (Black)`
-  - *Tailwind class:* `font-display tracking-tight font-extrabold uppercase`
-- **Cuerpo & Microcopy (Alta Legibilidad):**
-  - Fuente: `Inter` o `Plus Jakarta Sans`
-  - Pesos: `400 (Regular)`, `500 (Medium)`, `600 (SemiBold)`
-- **Telemetría & Datos Tabulares (Monospace):**
-  - Fuente: `JetBrains Mono` o `Space Mono`
-  - *Tailwind class:* `font-mono tracking-wider tabular-nums`
+Alineado con la **Sección 7** de [docs/plan_de_proyecto.md](../../docs/plan_de_proyecto.md):
+
+| Nivel UI | Fuente | Peso | Ejemplo de Uso |
+| :--- | :--- | :--- | :--- |
+| **Hero / Logo** | `Major Mono Display` | 400 Regular | `ASTROTEAM // ARTEMIS SOUTH POLE` |
+| **Cabeceras HUD / Secciones** | `Space Grotesk` | 700 Bold | `ANÁLISIS DE ILUMINACIÓN POLAR, SITIOS VIABLES` |
+| **Cuerpo / Textos / Labels** | `Inter` | 400 Regular / 500 Medium | Explicaciones de criterios, descripciones de cráteres, modales de ayuda |
+| **Telemetría / Efemérides / Coordenadas** | `Space Mono` | 400 Regular / 700 Bold | `AZ: 142.8° / EL: +0.45° / 2026-10-24 14:00 UTC` |
 
 ---
 
