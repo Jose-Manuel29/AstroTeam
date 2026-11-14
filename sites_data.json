@@ -1,0 +1,32 @@
+{
+  "mision": "Artemis III - Polo Sur Lunar",
+  "sitios": [
+    {
+      "id": "shackleton_rim",
+      "nombre": "Borde del Cráter Shackleton",
+      "coordenadas": {
+        "latitud": -89.66,
+        "longitud": 129.20,
+        "elevacion_metros": 1200
+      },
+      "resumen": {
+        "porcentaje_luz_solar": 86.5,
+        "porcentaje_visibilidad_tierra": 62.0,
+        "temperatura_promedio_c": -50
+      },
+      "descripcion_educativa": "Borde elevado con iluminación casi constante, ideal para generar energía solar.",
+      "horizonte_grados": [1.2, 0.8, 0.5, 1.0, 2.5, 4.0, 3.5, 2.0, 1.5, 0.9, 0.7, 1.1],
+      "cronograma": [
+        {
+          "fecha_hora": "2027-11-01 00:00",
+          "sol_elevacion": 1.5,
+          "sol_azimut": 45.0,
+          "hay_luz": true,
+          "tierra_elevacion": 5.2,
+          "tierra_azimut": 180.0,
+          "hay_senal": true
+        }
+      ]
+    }
+  ]
+}
