@@ -166,11 +166,15 @@ Para que el modelo 3D del terreno polar en **React Three Fiber** no sufra lag ni
    - Formato: **WEBP** comprimido con calidad 80%.
    - Comando ejecutado:
      ```bash
-     gdal_translate -of WEBP -outsize 2048 2048 -co "QUALITY=80" raw_data/wac_mosaic.tif output/textures/skin_wac_2k.webp
+     gdal_translate -b 1 -b 1 -b 1 -of WEBP -co "QUALITY=80" wac_stere.tif output/textures/skin_wac_2k.webp
      ```
 
-3. **Sincronización Geométrica**:
-   - Ambos mapas se recortan con el **mismo tamaño de píxel (ej. 2048x2048)** y el mismo Bounding Box (`-projwin ulx uly lrx lry`) para que la textura visual y el relieve encajen a la perfección vértice por vértice.
+3. **Normal Map (Micro-relieve y Sombras Rasantes)**:
+   - Formato: **PNG RGB de 24-bits**.
+   - Generado combinando hillshades ortogonales a $90^\circ$ (R), $0^\circ$ (G) y $89^\circ$ cenital (B) con `gdaldem hillshade` y `gdalbuildvrt -separate`.
+
+4. **Sincronización Geométrica**:
+   - Los mapas se reproyectan a **Estereográfica Polar Sur** con el **mismo tamaño de píxel (2048x2048)** y el mismo Bounding Box (`[-450000, -450000, 450000, 450000]` m) para que la textura visual, el relieve y las normales encajen a la perfección vértice por vértice.
 
 ---
 
