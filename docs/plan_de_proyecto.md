@@ -93,26 +93,35 @@ Para asegurar estabilidad en la presentación y evitar caídas de servidores ext
   - Mapas de temperatura / PSR (Diviner) para identificar potenciales depósitos de hielo volátil.
 
 ### B. Pipeline de Procesamiento (GDAL)
-Para manejar los archivos científicos masivos (`.tif`) de varios Gigabytes y hacerlos compatibles con React Three Fiber, se procesarán mediante línea de comandos (GDAL) bajo las siguientes reglas:
-- **Sincronización:** Ambos archivos (Skin y DEM) deben recortarse o redimensionarse al mismo tamaño exacto (ej. `2048x2048`) usando el mismo *Bounding Box*.
-- **Conversión Visual (Skin):** Convertir `.tif` a `.webp` para máxima compresión sin perder calidad visual:
+Para manejar los archivos científicos masivos (`.tif`) de varios Gigabytes y hacerlos compatibles con React Three Fiber, se procesan mediante línea de comandos (GDAL) bajo las siguientes reglas:
+- **Proyección Cartográfica Compartida:** Estereográfica Polar Sur (`+proj=stere +lat_0=-90 +lon_0=0 +k=1 +x_0=0 +y_0=0 +R=1737400 +units=m +no_defs`).
+- **Sincronización:** Todos los archivos (Skin, Displacement y Normales) se reproyectan y recortan al mismo tamaño exacto (`2048x2048`) usando el mismo *Bounding Box* centrado en el Polo Sur (`-450000 -450000 450000 450000` metros).
+- **Conversión Visual (Skin / Color):** Convertir `.tif` a `.webp` para máxima compresión sin perder calidad visual:
   ```bash
-  gdal_translate -of WEBP -outsize 2048 2048 -co "QUALITY=80" input_skin.tif output_skin.webp
+  gdal_translate -b 1 -b 1 -b 1 -of WEBP -co "QUALITY=80" input_skin_stere.tif output_skin.webp
   ```
-- **Conversión Elevación (DEM):** Convertir `.tif` a `.png` de 8-bits usando la bandera de normalización matemática:
+- **Conversión Elevación (DEM / Displacement):** Convertir `.tif` a `.png` de 8-bits usando la bandera de normalización matemática:
   ```bash
-  gdal_translate -of PNG -outsize 2048 2048 -scale input_dem.tif output_dem.png
+  gdal_translate -of PNG -scale -ot Byte input_dem_stere.tif output_displacement.png
   ```
   *(Nota: No usar compresión WEBP/JPG para los DEM, ya que genera "escalones" o artefactos en la geometría 3D).*
+- **Generación de Normal Map (Micro-relieve):** Extraer gradientes de pendiente y normales ortogonales mediante `gdaldem hillshade` a $90^\circ$, $0^\circ$ y $89^\circ$ cenital, combinados en un archivo RGB de 3 bandas:
+  ```bash
+  gdaldem hillshade -az 90 -alt 45 input_dem_stere.tif hs_x.tif
+  gdaldem hillshade -az 0 -alt 45 input_dem_stere.tif hs_y.tif
+  gdaldem hillshade -az 0 -alt 89 input_dem_stere.tif hs_z.tif
+  gdalbuildvrt -separate normal.vrt hs_x.tif hs_y.tif hs_z.tif
+  gdal_translate -of PNG normal.vrt output_normal.png
+  ```
 
 ---
 
 ## 6. Plan de Trabajo (Cronograma de 48 Horas)
 
-| Bloque | Ventana de Tiempo | Alcance / Hito |
-| :--- | :--- | :--- |
-| **Bloque 1** | Horas 0 a 4 | **Definición y Datos:** Selección de sitios, extracción de Moon Trek, procesamiento de texturas con GDAL y ejecución del script Python para JSONs de efemérides. |
-| **Bloque 2** | Horas 4 a 16 | **Núcleo Funcional (MVP):** Landing page, flujos de navegación, Vista Global (GLB) y sincronización del Timeline Slider. |
-| **Bloque 3** | Horas 16 a 30 | **3D Avanzado y Filtros:** Implementar Vistas Regional y Local (displacement maps), inputs de "criterios aceptables" y render de vectores hacia la Tierra. |
-| **Bloque 4** | Horas 30 a 42 | **UI/UX y Modos:** Separación de perfiles (Técnico vs Educativo), overlays científicos (Slope/PSR), métricas avanzadas y despliegue inicial (Vercel/Netlify). |
-| **Bloque 5** | Horas 42 a 48 | **Pitch y Respaldo:** Grabación de video demo de 2 minutos y ensayo del pitch. |
+| Bloque | Ventana de Tiempo | Alcance / Hito | Estado |
+| :--- | :--- | :--- | :--- |
+| **Bloque 1** | Horas 0 a 4 | **Definición y Datos:** Selección de sitios, extracción de Moon Trek, procesamiento de texturas con GDAL (Skin, DEM, Normales) y ejecución del script Python para JSONs de efemérides. | **COMPLETADO (100%)** |
+| **Bloque 2** | Horas 4 a 16 | **Núcleo Funcional (MVP):** Landing page, flujos de navegación, Vista Global (GLB) y sincronización del Timeline Slider. | En progreso |
+| **Bloque 3** | Horas 16 a 30 | **3D Avanzado y Filtros:** Implementar Vistas Regional y Local (componente `LunarSurface` con displacement maps), inputs de "criterios aceptables" y render de vectores hacia la Tierra. | **PARCIAL (Vista Local 3D lista)** |
+| **Bloque 4** | Horas 30 a 42 | **UI/UX y Modos:** Separación de perfiles (Técnico vs Educativo), overlays científicos (Slope/PSR), métricas avanzadas y despliegue inicial (Vercel/Netlify). | Pendiente |
+| **Bloque 5** | Horas 42 a 48 | **Pitch y Respaldo:** Grabación de video demo de 2 minutos y ensayo del pitch. | Pendiente |
