@@ -1,138 +1,93 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useLoader } from "@react-three/fiber";
 import * as THREE from "three";
+import { TERRAIN } from "@/lib/geo/polarStereo";
+import { DEM_URL, NORMAL_URL } from "@/lib/geo/useTerrainHeight";
 
 export interface LunarSurfaceProps {
-  /**
-   * Dimensión del plano cuadrado en unidades de Three.js (ancho y alto).
-   * @default 100
-   */
+  /** Albedo WAC sin sombras fotográficas (delight_wac.py). */
+  mapUrl?: string;
+  /** DEM LOLA (escala de grises → desplazamiento). */
+  demUrl?: string;
+  /** Normal map tangente derivado del DEM (dem_to_normal.py). */
+  normalUrl?: string;
   size?: number;
-  /**
-   * Factor de escala vertical para el mapa de desplazamiento (LOLA DEM).
-   * Controla la altura macroscópica de picos y cráteres lunares.
-   * @default 12
-   */
-  displacementScale?: number;
-  /**
-   * Desplazamiento base para centrar la elevación vertical.
-   * @default -3
-   */
-  displacementBias?: number;
-  /**
-   * Intensidad del mapa de normales (micro-relieve de la superficie).
-   * @default 1.5
-   */
-  normalScale?: number;
-  /**
-   * Rugosidad del material para simular el regolito lunar.
-   * @default 0.9
-   */
-  roughness?: number;
-  /**
-   * Metalicidad del suelo lunar.
-   * @default 0.05
-   */
-  metalness?: number;
-  /**
-   * Modo malla de alambre para depuración geométrica.
-   * @default false
-   */
-  wireframe?: boolean;
-  /**
-   * Posición en el espacio 3D.
-   * @default [0, 0, 0]
-   */
-  position?: [number, number, number];
-  /**
-   * Rotación en radianes (por defecto horizontal en el plano XZ).
-   * @default [-Math.PI / 2, 0, 0]
-   */
-  rotation?: [number, number, number];
-  /**
-   * Subdivisión de vértices para la geometría plana.
-   * @default 512
-   */
   segments?: number;
+  displacementScale?: number;
+  displacementBias?: number;
+  normalScale?: number;
+  roughness?: number;
+  metalness?: number;
+  wireframe?: boolean;
+  children?: React.ReactNode;
 }
 
 /**
- * Componente LunarSurface (Vista Local / Polo Sur Lunar)
- * ----------------------------------------------------
- * Renderiza la superficie lunar utilizando texturas de alta resolución
- * generadas con GDAL a partir de datos científicos de la NASA:
- * - Color / Skin: Mosaico LROC WAC (WEBP calidad 80).
- * - Displacement Map: Elevación LOLA DEM normalizada (PNG 8-bit sin pérdida).
- * - Normal Map: Micro-relieve y sombras rasantes extraídas con gdaldem.
+ * Mapa 3D Local: bloque topográfico WAC (albedo) + LOLA DEM (relieve) + normales.
+ * Toda la iluminación proviene de las luces de la escena (sin sombras "quemadas").
  */
 export const LunarSurface: React.FC<LunarSurfaceProps> = ({
-  size = 100,
-  displacementScale = 12,
-  displacementBias = -3,
-  normalScale = 1.5,
-  roughness = 0.9,
-  metalness = 0.05,
+  mapUrl = "/textures/albedo_wac_delighted.webp",
+  demUrl = DEM_URL,
+  normalUrl = NORMAL_URL,
+  size = TERRAIN.size,
+  segments = TERRAIN.segments,
+  displacementScale = TERRAIN.displacementScale,
+  displacementBias = TERRAIN.displacementBias,
+  normalScale = 1,
+  roughness = 1,
+  metalness = 0,
   wireframe = false,
-  position = [0, 0, 0],
-  rotation = [-Math.PI / 2, 0, 0],
-  segments = 512,
+  children,
 }) => {
-  // Carga paralela de las 3 texturas procesadas por GDAL desde /textures/
-  const [colorMap, displacementMap, normalMap] = useLoader(
-    THREE.TextureLoader,
-    [
-      "/textures/skin_wac_2k.webp",
-      "/textures/displacement_lola_2k.png",
-      "/textures/normal_lola_2k.png",
-    ]
-  );
+  const [colorMap, displacementMap, normalMap] = useLoader(THREE.TextureLoader, [
+    mapUrl,
+    demUrl,
+    normalUrl,
+  ]);
 
-  // Optimización de configuración de texturas para Three.js
-  useMemo(() => {
-    // Espacio de color sRGB para la textura visual
+  useEffect(() => {
     colorMap.colorSpace = THREE.SRGBColorSpace;
-    colorMap.wrapS = THREE.ClampToEdgeWrapping;
-    colorMap.wrapT = THREE.ClampToEdgeWrapping;
+    colorMap.anisotropy = 8;
+    colorMap.needsUpdate = true;
+  }, [colorMap]);
 
-    // Filtros lineales para el displacement map
-    displacementMap.wrapS = THREE.ClampToEdgeWrapping;
-    displacementMap.wrapT = THREE.ClampToEdgeWrapping;
+  const normalScaleVec = useMemo(() => new THREE.Vector2(normalScale, normalScale), [normalScale]);
 
-    // Espacio lineal para el normal map
-    normalMap.wrapS = THREE.ClampToEdgeWrapping;
-    normalMap.wrapT = THREE.ClampToEdgeWrapping;
-  }, [colorMap, displacementMap, normalMap]);
-
-  const normalScaleVector = useMemo(
-    () => new THREE.Vector2(normalScale, normalScale),
-    [normalScale]
+  // El depth material por defecto ignora el displacement: sin esto, las sombras
+  // proyectadas serían las de un plano liso y el relieve no se auto-sombrearía.
+  const depthMaterial = useMemo(
+    () =>
+      new THREE.MeshDepthMaterial({
+        depthPacking: THREE.RGBADepthPacking,
+        displacementMap,
+        displacementScale,
+        displacementBias,
+      }),
+    [displacementMap, displacementScale, displacementBias]
   );
+  useEffect(() => () => depthMaterial.dispose(), [depthMaterial]);
 
   return (
-    <mesh
-      position={position}
-      rotation={rotation}
-      castShadow
-      receiveShadow
-    >
-      {/* Geometría plana densamente subdividida (ej. 512x512) para deformación de vértices */}
-      <planeGeometry args={[size, size, segments, segments]} />
-
-      {/* Material reactivo a luces direccionales dinámicas (simulación de amanecer/atardecer polar) */}
-      <meshStandardMaterial
-        map={colorMap}
-        displacementMap={displacementMap}
-        displacementScale={displacementScale}
-        displacementBias={displacementBias}
-        normalMap={normalMap}
-        normalScale={normalScaleVector}
-        roughness={roughness}
-        metalness={metalness}
-        wireframe={wireframe}
-      />
-    </mesh>
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow castShadow customDepthMaterial={depthMaterial}>
+        <planeGeometry args={[size, size, segments, segments]} />
+        <meshStandardMaterial
+          map={colorMap}
+          displacementMap={displacementMap}
+          displacementScale={displacementScale}
+          displacementBias={displacementBias}
+          normalMap={normalMap}
+          normalScale={normalScaleVec}
+          roughness={roughness}
+          metalness={metalness}
+          wireframe={wireframe}
+        />
+      </mesh>
+      {children}
+    </group>
   );
 };
 
