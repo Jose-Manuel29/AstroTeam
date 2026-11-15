@@ -20,6 +20,7 @@ import {
   CriteriaDaysKpiCard,
   TopTemporalController,
   SouthPoleMinimap,
+  MapLegendCard,
 } from "../components/hud";
 import { CANDIDATE_LANDING_SITES } from "../data/landingSites";
 
@@ -350,7 +351,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           showMap ? "pointer-events-auto" : "pointer-events-none [&_*]:!pointer-events-none"
         }`}
         style={{
-          transform: showMap ? "translateY(0)" : "translateY(65vh)",
+          transform: showMap ? "translateY(clamp(45px, 13vh, 125px))" : "translateY(75vh)",
           opacity: showMap ? 1 : 0,
           transition: "transform 0.95s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.75s ease-out",
         }}
@@ -388,7 +389,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 pedestalColor: "#0D0D0D", // palette-obsidian oficial
                 focusRadius: 15.0,
                 cutoutShape: "square",
-                position: [0, -18, 0], // Bajado aún más en el eje Y para mejor encuadre visual y holgura vertical
+                position: [0, -18, 0], // Bloque posicionado bajo la cota de flotación
                 rotation: [0, Math.PI / 4, 0], // Orientación isométrica en diamante a 45°
               }}
               earth={{
@@ -404,10 +405,11 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 gridColor: "#3B3B40",   // palette-charcoal oficial
               }}
               camera={{
-                initialPosition: [32, 8.6, 51.2],
-                target: [4.8, -12.4, -7.7],
+                initialPosition: [32, 14, 51.2],
+                target: [4.8, -4.5, -7.7],
                 fov: 38,
-                flyOffset: [27.2, 21.0, 58.9], // Mantiene la misma inclinación y perspectiva al enfocar el sitio
+                flyOffset: [27.2, 21.0, 58.9],
+                targetOffset: [0, 4.5, 0], // Desplaza el punto focal sobre el terreno para que el diorama comience casi tocando el borde inferior
                 lerpFactor: 0.06,
                 minDistance: 30,
                 maxDistance: 150,
@@ -446,7 +448,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           Con espaciado vertical suficiente para no solaparse jamás con el botón superior
          ========================================================================= */}
       <aside
-        className="absolute left-[clamp(1rem,3.8vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(250px,22vw,336px)] z-20 flex flex-col justify-start gap-[clamp(0.85rem,2vh,1.4rem)] max-h-[calc(100vh-clamp(4.8rem,9.5vh,6.5rem))] pointer-events-none"
+        className="absolute left-[clamp(1rem,3.8vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(250px,22vw,336px)] z-20 flex flex-col justify-start gap-[clamp(0.5rem,1.4vh,1.1rem)] max-h-[calc(100vh-clamp(4.8rem,9.5vh,6.5rem))] pointer-events-none overflow-y-auto pr-1"
         style={{
           transform: moonArrived ? "translateX(0)" : "translateX(-430px)",
           opacity: moonArrived ? 1 : 0,
@@ -457,7 +459,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           title="Fulfilled criteria"
           items={sliderItems}
           onChange={handleCriterionChange}
-          className="w-full shrink min-h-0"
+          className="w-full shrink min-h-0 pointer-events-auto"
         />
 
         <CriteriaKpiCard
@@ -466,14 +468,19 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           unit="%"
           badgeText={fulfilledKpiPercent >= 75 ? "OPTIMAL" : "MARGINAL"}
           subtitle="Viable landing zone ↑"
-          className="w-fit self-start shrink-0 min-h-0"
+          className="w-fit self-start shrink-0 min-h-0 pointer-events-auto"
         />
 
         <CriteriaIconListCard
           title="Environmental telemetry"
           items={iconCriteriaItems}
           onToggleItem={handleToggleIconCriterion}
-          className="w-full shrink min-h-0"
+          className="w-full shrink min-h-0 pointer-events-auto"
+        />
+
+        <MapLegendCard
+          title="Simbología e Indicadores"
+          className="w-full shrink min-h-0 pointer-events-auto"
         />
       </aside>
 

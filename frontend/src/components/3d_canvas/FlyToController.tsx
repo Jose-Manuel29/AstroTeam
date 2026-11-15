@@ -23,6 +23,8 @@ export interface FlyToControllerProps {
   terrainRotation?: [number, number, number];
   /** Posición (offset) aplicada al grupo del terreno. */
   terrainPosition?: [number, number, number];
+  /** Offset vertical o tridimensional aplicado al punto de enfoque (target) para encuadre táctico. */
+  targetOffset?: [number, number, number];
 }
 
 /**
@@ -38,6 +40,7 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
   overviewTarget = [0, -10, 0],
   terrainRotation,
   terrainPosition,
+  targetOffset,
 }) => {
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const heightAt = useTerrainHeight();
@@ -62,6 +65,9 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
     if (terrainPosition) {
       target.add(new THREE.Vector3(...terrainPosition));
     }
+    if (targetOffset) {
+      target.add(new THREE.Vector3(...targetOffset));
+    }
     return { target, camera: target.clone().add(new THREE.Vector3(...offset)) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -83,6 +89,9 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
     terrainPosition?.[0],
     terrainPosition?.[1],
     terrainPosition?.[2],
+    targetOffset?.[0],
+    targetOffset?.[1],
+    targetOffset?.[2],
   ]);
 
   useEffect(() => {

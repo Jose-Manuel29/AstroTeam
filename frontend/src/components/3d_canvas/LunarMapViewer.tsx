@@ -152,6 +152,7 @@ export interface CameraConfig {
   near?: number;
   far?: number;
   flyOffset?: [number, number, number];
+  targetOffset?: [number, number, number];
   lerpFactor?: number;
   minDistance?: number;
   maxDistance?: number;
@@ -317,6 +318,7 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
             site={activeSite}
             flightId={flightId}
             offset={camera?.flyOffset ?? [6, 8, 10]}
+            targetOffset={camera?.targetOffset}
             lerpFactor={camera?.lerpFactor ?? 0.06}
             overviewCamera={initialCamPos}
             overviewTarget={camTarget}
