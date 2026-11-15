@@ -281,17 +281,19 @@ export const SiteZonesOverlay: React.FC<SiteZonesOverlayProps> = ({
 
   return (
     <group>
-      {zones.map(({ site, center, geometry, material }) => (
-        <mesh
-          key={site.id}
-          geometry={geometry}
-          material={material}
-          position={[center.x, effectiveOffset, center.z]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          receiveShadow
-          renderOrder={1}
-        />
-      ))}
+      {zones
+        .filter(({ site }) => !selectedId || site.id === selectedId)
+        .map(({ site, center, geometry, material }) => (
+          <mesh
+            key={site.id}
+            geometry={geometry}
+            material={material}
+            position={[center.x, effectiveOffset, center.z]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            receiveShadow
+            renderOrder={1}
+          />
+        ))}
     </group>
   );
 };

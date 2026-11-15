@@ -109,7 +109,17 @@ function LunarDashboard() {
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
               Sitios Artemis
             </h2>
-            <span className="font-mono text-[10px] text-slate-400">Polo Sur Lunar</span>
+            {selectedSite ? (
+              <button
+                type="button"
+                onClick={() => setSelectedSite(null)}
+                className="rounded border border-cyan-400/50 bg-cyan-500/15 px-1.5 py-0.5 font-mono text-[9px] text-cyan-200 hover:bg-cyan-500/25"
+              >
+                Mapa 900km
+              </button>
+            ) : (
+              <span className="font-mono text-[10px] text-slate-400">Polo Sur Lunar</span>
+            )}
           </div>
 
           <div className="flex max-h-[55vh] flex-col gap-1.5 overflow-y-auto pr-1">

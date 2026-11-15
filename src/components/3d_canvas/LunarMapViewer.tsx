@@ -12,6 +12,7 @@ import { SiteZonesOverlay } from "@/components/3d_canvas/SiteZonesOverlay";
 import { FlyToController } from "@/components/3d_canvas/FlyToController";
 import { EarthVector } from "@/components/3d_canvas/EarthVector";
 import { HoloGrid } from "@/components/3d_canvas/HoloGrid";
+import { DataLayers } from "@/components/3d_canvas/DataLayers";
 
 /** Configuración de las Mallas de Zona (SiteZonesOverlay) */
 export interface ZoneConfig {
@@ -54,6 +55,8 @@ export interface TerrainConfig {
   showPedestal?: boolean;
   pedestalDepth?: number;
   pedestalColor?: string;
+  /** Radio del recorte del diorama holográfico en unidades (por defecto 15.0 = 135 km) */
+  focusRadius?: number;
 }
 
 /** Configuración de la iluminación solar y ambiental */
@@ -168,7 +171,7 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
         {showStars && <Stars radius={200} depth={50} count={3000} factor={3} fade />}
 
         <HoloGrid
-          visible={grid?.visible ?? true}
+          visible={(grid?.visible ?? true) && !activeSite}
           size={terrainSize}
           divisions={grid?.divisions ?? 50}
           height={grid?.height ?? 25}
@@ -178,6 +181,13 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
         />
 
         <Suspense fallback={null}>
+          {/* Capas de datos apiladas sobre el sitio seleccionado (Diorama Holográfico) */}
+          <DataLayers
+            selectedSite={activeSite}
+            terrainSize={terrainSize}
+            visible={grid?.visible ?? true}
+          />
+
           <EarthVector
             selectedSite={activeSite}
             visible={earth?.visible ?? true}
@@ -200,6 +210,8 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
             mapUrl={terrain?.mapUrl}
             demUrl={terrain?.demUrl}
             normalUrl={terrain?.normalUrl}
+            selectedSite={activeSite}
+            focusRadius={terrain?.focusRadius ?? 15.0}
             showPedestal={terrain?.showPedestal}
             pedestalDepth={terrain?.pedestalDepth}
             pedestalColor={terrain?.pedestalColor}

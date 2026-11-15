@@ -143,17 +143,19 @@ export const SiteMarkers: React.FC<SiteMarkersProps> = ({
 
   return (
     <group>
-      {markers.map(({ site, p, y }) => (
-        <SiteMarkerItem
-          key={site.id}
-          site={site}
-          p={p}
-          y={y}
-          active={site.id === selectedId}
-          poleHeight={poleHeight}
-          onSelectSite={onSelectSite}
-        />
-      ))}
+      {markers
+        .filter(({ site }) => !selectedId || site.id === selectedId)
+        .map(({ site, p, y }) => (
+          <SiteMarkerItem
+            key={site.id}
+            site={site}
+            p={p}
+            y={y}
+            active={site.id === selectedId}
+            poleHeight={poleHeight}
+            onSelectSite={onSelectSite}
+          />
+        ))}
     </group>
   );
 };
