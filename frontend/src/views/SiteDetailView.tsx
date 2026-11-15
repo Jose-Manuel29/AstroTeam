@@ -38,7 +38,7 @@ export interface SiteDetailViewProps {
  * Comparte el mismo Canvas 3D persistente de la Luna desde LocationPickerView para evitar parpadeos.
  */
 export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
-  siteSlug = "shackleton-connecting-ridge",
+  siteSlug = "shackleton-rim",
   moonArrived = false,
   onBackToPicker,
   onSelectSite,
@@ -316,49 +316,60 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         }}
       >
         {moonArrived && (
-          <SiteProvider initialSite={selectedMapSite} initialZoneOffset={0.02}>
+          <SiteProvider>
             <LunarMapViewer
               sites={PRESET_SITES}
               selectedSite={selectedMapSite}
               onSelectSite={handleSelectMapSite}
               flightId={flightId}
               sun={{
-                angle: sunAzimuthDeg,
-                intensity: 2.2,
-                ambientIntensity: 0.22,
+                angle: sunAzimuthDeg + 45, // Ajustado para iluminar con rasante lateral contrastada
+                height: 18,
+                intensity: 2.8,
+                ambientIntensity: 0.18,
               }}
               zones={{
                 visible: true,
-                color: "#FF9F1C",
-                edgeOpacity: 0.75,
+                color: "#D9CEC5", // palette-cream oficial
+                edgeOpacity: 0.8,
                 gradientPower: 1.6,
-                emissiveIntensity: 0.8,
+                emissiveIntensity: 0.85,
               }}
               markers={{
                 visible: true,
                 poleHeight: 2,
               }}
               terrain={{
-                displacementScale: 2.5,
-                displacementBias: -1.25,
+                size: 78,
+                displacementScale: 4.8,
+                displacementBias: -2.2,
                 showPedestal: true,
-                pedestalDepth: 4,
+                pedestalDepth: 5.5,
+                pedestalColor: "#0D0D0D", // palette-obsidian oficial
                 focusRadius: 15.0,
+                cutoutShape: "square",
+                rotation: [0, Math.PI / 4, 0], // Orientación isométrica en diamante a 45°
               }}
               earth={{
                 visible: activeLayers["dte-link"],
                 targetPosition: [40, 50, -30],
+                color: "#D9CEC5", // palette-cream oficial
               }}
               grid={{
                 visible: activeLayers["solar-flux"],
                 height: 25,
-                opacity: 0.12,
+                opacity: 0.14,
+                centerColor: "#A6948A", // palette-ochre oficial
+                gridColor: "#3B3B40",   // palette-charcoal oficial
               }}
               camera={{
-                initialPosition: [0, 50, 100],
-                fov: 42,
+                initialPosition: [0, 52, 95],
+                target: [0, -10, 0],
+                fov: 38,
                 flyOffset: [6, 8, 10],
                 lerpFactor: 0.06,
+                minDistance: 45,
+                maxDistance: 140,
               }}
               showStars={false}
               className="relative w-full h-full bg-transparent"
@@ -393,7 +404,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           Dimensionada con unidades relativas (vh/vw/clamp) para encajar siempre en pantalla con espaciado uniforme
          ========================================================================= */}
       <aside
-        className="absolute left-[clamp(1.25rem,4.4vw,4rem)] top-[clamp(3.1rem,6.2vh,4rem)] bottom-[clamp(0.75rem,2.5vh,1.75rem)] w-[clamp(260px,23.5vw,336px)] z-20 flex flex-col justify-between gap-[clamp(0.45rem,1.4vh,1rem)] pointer-events-none"
+        className="absolute left-[clamp(1rem,3.8vw,4rem)] top-[clamp(2.5rem,5.2vh,3.75rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(250px,22vw,336px)] z-20 flex flex-col justify-between gap-[clamp(0.35rem,1.1vh,0.85rem)] max-h-[calc(100vh-clamp(3.2rem,6.8vh,4.75rem))] pointer-events-none"
         style={{
           transform: moonArrived ? "translateX(0)" : "translateX(-430px)",
           opacity: moonArrived ? 1 : 0,
@@ -404,7 +415,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           title="Fulfilled criteria"
           items={sliderItems}
           onChange={handleCriterionChange}
-          className="w-full shrink"
+          className="w-full shrink min-h-0"
         />
 
         <CriteriaKpiCard
@@ -413,14 +424,14 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           unit="%"
           badgeText={fulfilledKpiPercent >= 75 ? "OPTIMAL" : "MARGINAL"}
           subtitle="Viable landing zone ↑"
-          className="w-full shrink"
+          className="w-full shrink min-h-0"
         />
 
         <CriteriaIconListCard
           title="Environmental telemetry"
           items={iconCriteriaItems}
           onToggleItem={handleToggleIconCriterion}
-          className="w-full shrink"
+          className="w-full shrink min-h-0"
         />
       </aside>
 
@@ -428,9 +439,9 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           PASO 2C: COLUMNA HUD DERECHA (Entra desde el borde derecho hacia adentro con ease-out)
           Dimensionada con unidades relativas (vh/vw/clamp) para encajar siempre en pantalla con espaciado uniforme
          ========================================================================= */}
-      <aside className="absolute right-[clamp(1.25rem,4.4vw,4rem)] top-[clamp(2.75rem,5.2vh,3.5rem)] bottom-[clamp(0.75rem,2.5vh,1.75rem)] w-[clamp(270px,25vw,360px)] z-20 flex flex-col items-end justify-between gap-[clamp(0.45rem,1.3vh,0.875rem)] pointer-events-none">
+      <aside className="absolute right-[clamp(1rem,3.8vw,4rem)] top-[clamp(2.25rem,4.8vh,3.25rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(260px,23.5vw,360px)] z-20 flex flex-col items-end justify-between gap-[clamp(0.35rem,1.1vh,0.75rem)] max-h-[calc(100vh-clamp(3.2rem,6.8vh,4.75rem))] pointer-events-none">
         <div
-          className="w-full flex flex-col items-end gap-[clamp(0.45rem,1.3vh,0.875rem)] shrink"
+          className="w-full flex flex-col items-end gap-[clamp(0.35rem,1vh,0.75rem)] shrink min-h-0"
           style={{
             transform: moonArrived ? "translateX(0)" : "translateX(450px)",
             opacity: moonArrived ? 1 : 0,
@@ -450,14 +461,14 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
             actionLabel="see more"
             rows={rightGridRows}
             expandedRows={rightGridExpandedRows}
-            className="w-full shrink"
+            className="w-full shrink min-h-0"
           />
 
           <CriteriaDaysKpiCard
             title="Solar window"
             days={continuousSunlightDays}
             unitLabel="days"
-            className="w-full shrink"
+            className="w-full shrink min-h-0"
           />
         </div>
 
@@ -466,7 +477,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           id="mini-moon-card-slot"
           variant="transparent"
           padding="none"
-          className="w-full h-[clamp(115px,18.5vh,200px)] pr-[clamp(0.75rem,1.35vw,1.25rem)] pb-[clamp(0.5rem,1.2vh,1rem)] flex items-end justify-end shrink-0 mt-auto pointer-events-auto"
+          className="w-full h-[clamp(90px,15.5vh,185px)] pr-[clamp(0.6rem,1.2vw,1.15rem)] pb-[clamp(0.4rem,1vh,0.85rem)] flex items-end justify-end shrink-0 mt-auto pointer-events-auto"
           ariaLabel="Mini globe 3D container slot"
         >
           {/* Área interactiva anclada a la mini Luna: al hacer clic regresa a la vista de picker */}

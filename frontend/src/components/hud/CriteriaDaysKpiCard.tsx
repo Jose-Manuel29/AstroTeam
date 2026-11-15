@@ -20,7 +20,7 @@ export const CriteriaDaysKpiCard: React.FC<CriteriaDaysKpiCardProps> = ({
   unitLabel = "days",
   subtitle,
   align = "right",
-  className = "w-[clamp(220px,20vw,288px)]",
+  className = "w-full",
 }) => {
   const justifyClass =
     align === "left"
@@ -34,7 +34,7 @@ export const CriteriaDaysKpiCard: React.FC<CriteriaDaysKpiCardProps> = ({
       variant="slate"
       padding="md"
       ariaLabel={title}
-      className={`justify-between gap-[clamp(0.15rem,0.5vh,0.5rem)] ${className}`}
+      className={`justify-between gap-[clamp(0.1rem,0.4vh,0.35rem)] ${className}`}
     >
       <HudCardHeader
         title={title}
@@ -43,12 +43,12 @@ export const CriteriaDaysKpiCard: React.FC<CriteriaDaysKpiCardProps> = ({
         size="lg"
       />
 
-      <div className={`flex items-baseline gap-[0.5vw] pt-[0.2vh] w-full ${justifyClass}`}>
-        <span className="font-heading font-medium text-[clamp(2.1rem,5.8vh,4rem)] leading-none tracking-tight text-[#FAFAFA] tabular-nums">
+      <div className={`flex items-baseline gap-[0.4vw] pt-[0.1vh] w-full ${justifyClass}`}>
+        <span className="font-heading font-medium text-[clamp(1.75rem,4.8vh,3.4rem)] leading-none tracking-tight text-[#FAFAFA] tabular-nums">
           {days}
         </span>
         {unitLabel && (
-          <span className="font-heading font-normal text-[clamp(1.1rem,2.9vh,2rem)] leading-none text-[#D9CEC5]">
+          <span className="font-heading font-normal text-[clamp(0.95rem,2.4vh,1.65rem)] leading-none text-palette-cream">
             {unitLabel}
           </span>
         )}

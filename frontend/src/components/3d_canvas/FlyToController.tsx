@@ -16,6 +16,9 @@ export interface FlyToControllerProps {
   offset?: [number, number, number];
   /** Factor de interpolación por frame (normalizado a 60 fps). */
   lerpFactor?: number;
+  /** Posición de destino de la cámara cuando no hay sitio seleccionado (overview general). */
+  overviewCamera?: [number, number, number];
+  overviewTarget?: [number, number, number];
 }
 
 /**
@@ -27,6 +30,8 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
   flightId,
   offset = [6, 8, 10],
   lerpFactor = 0.06,
+  overviewCamera = [0, 52, 95],
+  overviewTarget = [0, -10, 0],
 }) => {
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const heightAt = useTerrainHeight();
@@ -36,8 +41,8 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
     if (!site) {
       if (flightId > 0) {
         return {
-          target: new THREE.Vector3(0, 0, 0),
-          camera: new THREE.Vector3(0, 50, 100),
+          target: new THREE.Vector3(...overviewTarget),
+          camera: new THREE.Vector3(...overviewCamera),
         };
       }
       return null;
@@ -47,7 +52,7 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
     const target = new THREE.Vector3(p.x, heightAt(p.u, p.v), p.z);
     return { target, camera: target.clone().add(new THREE.Vector3(...offset)) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [site, flightId, heightAt, offset[0], offset[1], offset[2]]);
+  }, [site, flightId, heightAt, offset[0], offset[1], offset[2], overviewCamera[0], overviewCamera[1], overviewCamera[2], overviewTarget[0], overviewTarget[1], overviewTarget[2]]);
 
   useEffect(() => {
     flying.current = goal !== null;

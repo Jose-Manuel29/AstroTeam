@@ -11,7 +11,7 @@ export const App: React.FC = () => {
   const [explorerInitialPhase, setExplorerInitialPhase] =
     useState<ExplorerPhase>("landing");
   const [selectedSiteSlug, setSelectedSiteSlug] = useState<string>(
-    "shackleton-connecting-ridge"
+    "shackleton-rim"
   );
   const [detailMoonArrived, setDetailMoonArrived] = useState<boolean>(false);
 

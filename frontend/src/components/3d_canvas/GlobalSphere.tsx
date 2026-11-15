@@ -18,7 +18,7 @@ export const GlobalSphere: React.FC<GlobalSphereProps> = ({ radius = 10, wirefra
       {/* Retícula superpuesta para referencia visual de lat/lon */}
       <mesh scale={1.002}>
         <sphereGeometry args={[radius, 36, 18]} />
-        <meshBasicMaterial color="#22d3ee" wireframe transparent opacity={wireframe ? 0.6 : 0.12} />
+        <meshBasicMaterial color="#7F7B8C" wireframe transparent opacity={wireframe ? 0.6 : 0.14} />
       </mesh>
     </group>
   );

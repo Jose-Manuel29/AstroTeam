@@ -602,7 +602,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
     return [
       {
         id: site0?.id || "zone-1",
-        label: site0?.name || "Shackleton Ridge",
+        label: site0?.name || "Shackleton Rim",
         value: site0 ? `${site0.illuminationAvgPercent}%` : undefined,
         icon: "sun",
         active: site0?.isViable !== false,
@@ -610,7 +610,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
       },
       {
         id: site1?.id || "zone-2",
-        label: site1?.name || "Faustini Rim A",
+        label: site1?.name || "Connecting Ridge",
         value: site1 ? `${site1.slopeDegrees}°` : undefined,
         icon: "thermometer",
         active: site1?.isViable !== false,
@@ -618,7 +618,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
       },
       {
         id: site2?.id || "zone-3",
-        label: site2?.name || "Amundsen Rim",
+        label: site2?.name || "Faustini Rim",
         value: site2 ? `${site2.earthVisibilityPercent}%` : undefined,
         icon: "radiation",
         active: site2?.isViable !== false,
@@ -626,7 +626,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
       },
       {
         id: site3?.id || "zone-4",
-        label: site3?.name || "Cabeus B Peak",
+        label: site3?.name || "Malapert Massif",
         value: site3 ? `${site3.illuminationAvgPercent}%` : undefined,
         icon: "sun",
         active: site3?.isViable !== false,

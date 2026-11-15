@@ -33,14 +33,14 @@ export const CriteriaSlidersCard: React.FC<CriteriaSlidersCardProps> = ({
   headerAction,
   items,
   onChange,
-  className = "w-[clamp(260px,23.5vw,336px)]",
+  className = "w-full",
 }) => {
   return (
     <HudCard
       variant="charcoal"
       padding="md"
       ariaLabel={title}
-      className={`gap-[clamp(0.4rem,1.1vh,0.875rem)] ${className}`}
+      className={`gap-[clamp(0.25rem,0.85vh,0.75rem)] ${className}`}
     >
       <HudCardHeader
         title={title}
@@ -49,7 +49,7 @@ export const CriteriaSlidersCard: React.FC<CriteriaSlidersCardProps> = ({
         size="md"
       />
 
-      <HudCardBody className="gap-[clamp(0.3rem,0.9vh,0.75rem)]">
+      <HudCardBody className="gap-[clamp(0.2rem,0.75vh,0.65rem)]">
         {items.map((item) => {
           const min = item.min ?? 0;
           const max = item.max ?? 100;
@@ -64,35 +64,35 @@ export const CriteriaSlidersCard: React.FC<CriteriaSlidersCardProps> = ({
             : `${Math.round(item.value)}${item.unit ?? "%"}`;
 
           return (
-            <div key={item.id} className="flex flex-col gap-[0.3vh] w-full">
+            <div key={item.id} className="flex flex-col gap-[0.25vh] w-full">
               {/* Etiqueta + Valor inyectado */}
               <div className="flex items-center justify-between gap-2 w-full">
-                <span className="font-sans font-light text-[clamp(0.7rem,1.3vh,0.78125rem)] leading-[1.25] text-[#FAFAFA]/95 truncate">
+                <span className="font-sans font-light text-[clamp(0.65rem,1.18vh,0.78125rem)] leading-tight text-[#FAFAFA]/95 truncate">
                   {item.label}
                 </span>
-                <span className="font-sans font-medium text-[clamp(0.68rem,1.25vh,0.75rem)] leading-[1.25] text-[#D9CEC5] tabular-nums shrink-0">
+                <span className="font-sans font-medium text-[clamp(0.62rem,1.12vh,0.75rem)] leading-tight text-palette-cream tabular-nums shrink-0">
                   {displayValue}
                 </span>
               </div>
 
               {/* Track interactivo fluido al 100% del ancho y alto relativo */}
-              <div className="relative flex items-center w-full h-[clamp(13px,2vh,20px)] isolate group">
+              <div className="relative flex items-center w-full h-[clamp(11px,1.6vh,18px)] isolate group">
                 {/* Riel base */}
                 <div
                   aria-hidden="true"
-                  className="w-full h-[clamp(2px,0.32vh,3px)] bg-[#27262B] rounded-full z-0"
+                  className="w-full h-[clamp(2px,0.28vh,3px)] bg-palette-charcoal rounded-full z-0"
                 />
 
                 {/* Marca vertical inicial en x=0 */}
                 <div
                   aria-hidden="true"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-[clamp(6px,0.85vh,8px)] bg-[#FFFFFF] rounded-full z-10"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-[clamp(5px,0.75vh,7px)] bg-[#FFFFFF] rounded-full z-10"
                 />
 
                 {/* Progreso activo en porcentaje */}
                 <div
                   aria-hidden="true"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 h-[clamp(2px,0.32vh,3px)] bg-[#FFFFFF] rounded-full z-10 transition-[width] duration-75 ease-out"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 h-[clamp(2px,0.28vh,3px)] bg-[#FFFFFF] rounded-full z-10 transition-[width] duration-75 ease-out"
                   style={{ width: `${percent}%` }}
                 />
 
@@ -100,8 +100,8 @@ export const CriteriaSlidersCard: React.FC<CriteriaSlidersCardProps> = ({
                 <div
                   aria-hidden="true"
                   className="
-                    absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[clamp(8px,1.15vh,11px)] h-[clamp(8px,1.15vh,11px)]
-                    rounded-full bg-[#FFFFFF] shadow-[0_0_8px_rgba(255,255,255,0.65)]
+                    absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[clamp(7px,1.05vh,10px)] h-[clamp(7px,1.05vh,10px)]
+                    rounded-full bg-palette-cream shadow-[0_0_8px_rgba(217,206,197,0.75)]
                     group-hover:scale-125 transition-transform duration-150 z-10 pointer-events-none
                   "
                   style={{ left: `${percent}%` }}

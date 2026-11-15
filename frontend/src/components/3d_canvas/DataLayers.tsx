@@ -41,9 +41,9 @@ export const DataLayers: React.FC<DataLayersProps> = ({
     return p;
   }, [activeSite, terrainSize]);
 
-  // Capa 1 (y = 10): GridHelper 30x30 (#00ffff / #004444)
+  // Capa 1 (y = 10): GridHelper 30x30 (#7F7B8C / #3B3B40 - Lunar Slate & Charcoal)
   const baseGrid = useMemo(() => {
-    const g = new THREE.GridHelper(layerSize, 30, "#00ffff", "#004444");
+    const g = new THREE.GridHelper(layerSize, 30, "#7F7B8C", "#3B3B40");
     const mats = Array.isArray(g.material) ? g.material : [g.material];
     mats.forEach((m) => {
       m.transparent = true;
@@ -54,9 +54,9 @@ export const DataLayers: React.FC<DataLayersProps> = ({
     return g;
   }, [layerSize]);
 
-  // Capa 2 (y = 15): Plano térmico/radar transparente + borde brillante (EdgesGeometry) + sub-grid fino
+  // Capa 2 (y = 15): Plano térmico/radar transparente + borde brillante (EdgesGeometry) + sub-grid fino (#A6948A / #3B3B40)
   const radarGrid = useMemo(() => {
-    const g = new THREE.GridHelper(layerSize, 15, "#ff9f1c", "#553300");
+    const g = new THREE.GridHelper(layerSize, 15, "#A6948A", "#3B3B40");
     const mats = Array.isArray(g.material) ? g.material : [g.material];
     mats.forEach((m) => {
       m.transparent = true;
@@ -108,7 +108,7 @@ export const DataLayers: React.FC<DataLayersProps> = ({
         font={SPACE_MONO_TTF}
         position={[-half, 10.35, half + 0.8]}
         fontSize={0.55}
-        color="#00ffff"
+        color="#D9CEC5"
         anchorX="left"
         anchorY="middle"
       >
@@ -119,7 +119,7 @@ export const DataLayers: React.FC<DataLayersProps> = ({
       <group position={[0, 15, 0]}>
         <mesh geometry={planeGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3}>
           <meshBasicMaterial
-            color="#ff9f1c"
+            color="#D9CEC5"
             transparent
             opacity={0.07}
             depthWrite={false}
@@ -127,14 +127,14 @@ export const DataLayers: React.FC<DataLayersProps> = ({
           />
         </mesh>
         <lineSegments geometry={edgesGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4}>
-          <lineBasicMaterial color="#ff9f1c" transparent opacity={0.9} toneMapped={false} />
+          <lineBasicMaterial color="#A6948A" transparent opacity={0.85} toneMapped={false} />
         </lineSegments>
         <primitive object={radarGrid} renderOrder={3} />
         <Text
           font={SPACE_MONO_TTF}
           position={[-half, 0.35, half + 0.8]}
           fontSize={0.55}
-          color="#ff9f1c"
+          color="#A6948A"
           anchorX="left"
           anchorY="middle"
         >
@@ -146,7 +146,7 @@ export const DataLayers: React.FC<DataLayersProps> = ({
       <group position={[0, 20, 0]}>
         <mesh geometry={planeGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4}>
           <meshBasicMaterial
-            color="#00f5d4"
+            color="#D9CEC5"
             transparent
             opacity={0.04}
             depthWrite={false}
@@ -154,13 +154,13 @@ export const DataLayers: React.FC<DataLayersProps> = ({
           />
         </mesh>
         <lineSegments geometry={edgesGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
-          <lineBasicMaterial color="#00f5d4" transparent opacity={0.65} toneMapped={false} />
+          <lineBasicMaterial color="#D9CEC5" transparent opacity={0.65} toneMapped={false} />
         </lineSegments>
         <mesh geometry={topRingGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
           <meshBasicMaterial
-            color="#00f5d4"
+            color="#D9CEC5"
             transparent
-            opacity={0.7}
+            opacity={0.75}
             depthWrite={false}
             side={THREE.DoubleSide}
             toneMapped={false}
@@ -170,7 +170,7 @@ export const DataLayers: React.FC<DataLayersProps> = ({
           font={SPACE_MONO_TTF}
           position={[-half, 0.35, half + 0.8]}
           fontSize={0.55}
-          color="#00f5d4"
+          color="#D9CEC5"
           anchorX="left"
           anchorY="middle"
         >
@@ -186,7 +186,7 @@ export const DataLayers: React.FC<DataLayersProps> = ({
             [dx, groundY, dz],
             [dx, 20, dz],
           ]}
-          color="#00ffff"
+          color="#A6948A"
           lineWidth={1.3}
           dashed
           dashSize={0.6}

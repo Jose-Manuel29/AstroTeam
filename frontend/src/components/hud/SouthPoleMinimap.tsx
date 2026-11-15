@@ -27,14 +27,15 @@ const SITE_MAP_COORDINATES: Record<string, { x: number; y: number }> = {
  * Reconstruye la superficie del polo sur lunar mediante una matriz 2x2:
  *  [ 1.png | 2.png ]
  *  [ 3.png | 4.png ]
- * Renderiza dos líneas discontinuas perpendiculares y un recuadro de zona (palette-cream / ochre)
- * que enmarca la ubicación activa analizada en la vista 3D.
+ * Renderiza dos líneas discontinuas perpendiculares y un recuadro de zona con la paleta Lunar Regolith
+ * (palette-cream / palette-ochre / palette-obsidian) que enmarca la ubicación activa analizada en la vista 3D.
+ * Totalmente adaptativo a la altura y ancho del viewport con porcentajes y clamps relativos.
  */
 export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
   currentSiteSlug = "shackleton-connecting-ridge",
   onSelectSite,
   size,
-  className = "w-[clamp(115px,19vh,210px)] h-[clamp(115px,19vh,210px)] aspect-square",
+  className = "w-[clamp(95px,16.5vh,195px)] h-[clamp(95px,16.5vh,195px)] aspect-square",
 }) => {
   // Dimensiones relativas (%) respecto al sistema base de 210x210 de Figma
   const rectWidthPct = (38 / 210) * 100;
@@ -56,10 +57,10 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
 
   return (
     <div
-      className={`relative rounded-full overflow-hidden select-none border border-white/25 bg-[#0D0D0D] shadow-[0_0_28px_rgba(250,250,250,0.18)] ${className}`}
+      className={`relative rounded-full overflow-hidden select-none border border-palette-slate/40 bg-palette-obsidian shadow-[0_0_24px_rgba(217,206,197,0.18)] ${className}`}
       style={{
         ...(size ? { width: `${size}px`, height: `${size}px` } : {}),
-        filter: "drop-shadow(0px 0px 24px rgba(250, 250, 250, 0.22))",
+        filter: "drop-shadow(0px 0px 20px rgba(217, 206, 197, 0.2))",
       }}
       aria-label="South Pole Polar Minimap"
     >
@@ -93,28 +94,28 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
         />
       </div>
 
-      {/* 2. OVERLAY RADAR SUTIL */}
-      <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none" />
+      {/* 2. OVERLAY RADAR SUTIL CON PALETA LUNAR */}
+      <div className="absolute inset-0 rounded-full border border-palette-cream/15 pointer-events-none" />
 
-      {/* 3. LÍNEA VERTICAL DISCONTINUA (Posición en % relativa al contenedor) */}
+      {/* 3. LÍNEA VERTICAL DISCONTINUA (Paleta Ochre con opacidad) */}
       <div
-        className="absolute top-0 bottom-0 w-0 border-l-2 border-dashed border-[#A6948A] pointer-events-none transition-all duration-500 ease-out z-10"
+        className="absolute top-0 bottom-0 w-0 border-l-2 border-dashed border-palette-ochre/85 pointer-events-none transition-all duration-500 ease-out z-10"
         style={{
           left: `${targetXPct}%`,
         }}
       />
 
-      {/* 4. LÍNEA HORIZONTAL DISCONTINUA (Posición en % relativa al contenedor) */}
+      {/* 4. LÍNEA HORIZONTAL DISCONTINUA (Paleta Ochre con opacidad) */}
       <div
-        className="absolute left-0 right-0 h-0 border-t-2 border-dashed border-[#A6948A] pointer-events-none transition-all duration-500 ease-out z-10"
+        className="absolute left-0 right-0 h-0 border-t-2 border-dashed border-palette-ochre/85 pointer-events-none transition-all duration-500 ease-out z-10"
         style={{
           top: `${targetYPct}%`,
         }}
       />
 
-      {/* 5. RECUADRO DE ZONA ACTIVA (Dimensiones y posición en % relativas al contenedor) */}
+      {/* 5. RECUADRO DE ZONA ACTIVA (Paleta Cream translúcido con borde Ochre) */}
       <div
-        className="absolute box-border bg-[#D9CEC5]/75 border-2 border-[#A6948A] pointer-events-none transition-all duration-500 ease-out z-20 shadow-[0_0_10px_rgba(217,206,197,0.4)]"
+        className="absolute box-border bg-palette-cream/70 border-2 border-palette-ochre pointer-events-none transition-all duration-500 ease-out z-20 shadow-[0_0_12px_rgba(217,206,197,0.35)]"
         style={{
           width: `${rectWidthPct}%`,
           height: `${rectHeightPct}%`,
@@ -147,10 +148,10 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
             }}
           >
             <span
-              className={`block rounded-full ${
+              className={`block rounded-full transition-all ${
                 isActive
-                  ? "w-[clamp(7px,1vh,10px)] h-[clamp(7px,1vh,10px)] bg-[#FFFFFF] shadow-[0_0_8px_#FFFFFF] ring-2 ring-[#A6948A]"
-                  : "w-[clamp(4px,0.65vh,6px)] h-[clamp(4px,0.65vh,6px)] bg-[#FAFAFA]/90 shadow-[0_0_5px_#FAFAFA]"
+                  ? "w-[clamp(7px,1.1vh,10px)] h-[clamp(7px,1.1vh,10px)] bg-palette-cream shadow-[0_0_8px_#D9CEC5] ring-2 ring-palette-ochre"
+                  : "w-[clamp(4px,0.7vh,6px)] h-[clamp(4px,0.7vh,6px)] bg-palette-slate/90 shadow-[0_0_4px_#7F7B8C] hover:bg-palette-cream"
               }`}
             />
           </button>

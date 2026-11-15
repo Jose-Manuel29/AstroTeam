@@ -137,11 +137,17 @@ Para asegurar coherencia visual con la estética de telemetría y centro de cont
 *(Nota: Por ahora se prescinde de `Space Mono`, unificando botones CTA y cuerpo bajo `Inter`).*
 
 ### Paleta Cromática Oficial (Adobe Color - Actualizada Lunar Regolith)
-- **Regolith Warm Cream (`#D9CEC5`):** Superficies de botones tácticos, cápsulas glassmorphism, acentos sutiles de suelo lunar.
-- **Charcoal Dark Slate (`#3B3B40`):** Textos oscuros en botones, bordes de alto contraste y tarjetas HUD.
-- **Space Slate Purple / Dust (`#7F7B8C`):** Elementos secundarios, retículas de telemetría y badges neutrales.
-- **Lunar Ochre / Earthshine (`#A6948A`):** Iluminación solar rasante suave, transiciones térmicas y marcadores.
-- **Deep Space Obsidian (`#0D0D0D`):** Fondo general del viewport espacial, lienzo principal y sombras permanentes (PSR).
+- **Regolith Warm Cream (`#D9CEC5` / `palette-cream`):** Superficies de botones tácticos, cápsulas glassmorphism, acentos sutiles de suelo lunar, zona de alunizaje activa y vector hacia la Tierra.
+- **Charcoal Dark Slate (`#3B3B40` / `palette-charcoal`):** Textos oscuros en botones, bordes de alto contraste, tarjetas HUD y sub-grids de telemetría.
+- **Space Slate Purple / Dust (`#7F7B8C` / `palette-slate`):** Elementos secundarios, retículas de escaneo topográfico y badges neutrales.
+- **Lunar Ochre / Earthshine (`#A6948A` / `palette-ochre`):** Iluminación solar rasante suave, transiciones térmicas, ejes/retícula de referencia, líneas ortogonales del minimapa polar y marcadores.
+- **Deep Space Obsidian (`#0D0D0D` / `palette-obsidian`):** Fondo general del viewport espacial, pedestal de diorama, lienzo principal y sombras permanentes (PSR).
+
+### Sistema de Diseño HUD y Responsividad Desktop (Medidas Relativas Fluidas)
+- **Estrategia Anti-Desbordamiento Vertical:** Para garantizar que todos los paneles HUD y elementos interactivos se rendericen holgadamente en pantallas de escritorio con altura reducida (ej. 768px, 800px, 900px), todos los componentes de la vista de detalle implementan:
+  - **Medidas Relativas con `clamp(min, preferred_vh/vw, max)`:** Alturas, rellenos (`padding`), márgenes y tipografías escalan dinámicamente según la altura del viewport.
+  - **Minimapa Radar Polar (`SouthPoleMinimap`):** Ensambla una matriz 2x2 de cuadrantes polares (`1.png`, `2.png`, `3.png`, `4.png`) en un marco circular con líneas discontinuas perpendiculares (`palette-ochre`), recuadro de zona (`palette-cream/70`) y marcadores de sitios, escalando fluidamente con `w-[clamp(95px,16.5vh,195px)]`.
+  - **Contención y Scroll Interno Elegante:** Componentes con múltiples elementos dinámicos (como la lista de telemetría ambiental) incluyen límites relativos de altura (`max-h-[clamp(115px,24vh,230px)]`) con scroll interno sutil para evitar cualquier colisión o desborde del layout.
 
 ### Sistema de Iconografía Oficial
 - **Biblioteca:** `Phosphor Icons` (`@phosphor-icons/react`).
