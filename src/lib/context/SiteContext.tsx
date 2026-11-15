@@ -34,24 +34,34 @@ export interface PresetSitesFile {
 interface SiteContextValue {
   selectedSite: PresetSite | null;
   setSelectedSite: (site: PresetSite | null) => void;
+  /** Offset vertical (Y) de las mallas de zona sobre el terreno. */
+  zoneOffset: number;
+  setZoneOffset: (offset: number) => void;
 }
 
-const SiteContext = createContext<SiteContextValue | undefined>(undefined);
+const DEFAULT_CONTEXT: SiteContextValue = {
+  selectedSite: null,
+  setSelectedSite: () => {},
+  zoneOffset: 0.02,
+  setZoneOffset: () => {},
+};
+
+const SiteContext = createContext<SiteContextValue>(DEFAULT_CONTEXT);
 
 export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedSite, setSelectedSite] = useState<PresetSite | null>(null);
+  const [zoneOffset, setZoneOffset] = useState<number>(0.02);
 
-  const value = useMemo(() => ({ selectedSite, setSelectedSite }), [selectedSite]);
+  const value = useMemo(
+    () => ({ selectedSite, setSelectedSite, zoneOffset, setZoneOffset }),
+    [selectedSite, zoneOffset]
+  );
 
   return <SiteContext.Provider value={value}>{children}</SiteContext.Provider>;
 };
 
 export function useSiteContext(): SiteContextValue {
-  const ctx = useContext(SiteContext);
-  if (!ctx) {
-    throw new Error("useSiteContext debe usarse dentro de <SiteProvider>.");
-  }
-  return ctx;
+  return useContext(SiteContext);
 }
 
 export default SiteContext;

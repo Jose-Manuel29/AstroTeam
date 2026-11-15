@@ -15,7 +15,8 @@ export interface DynamicSunProps {
 }
 
 /**
- * Sol dinámico rasante: orbita el horizonte del Polo Sur a baja elevación.
+ * Sol dinámico rasante: orbita el horizonte del Polo Sur a baja elevación
+ * proyectando sombras duras sobre el relieve lunar.
  * x = r·cos(θ), z = r·sin(θ), y = altura rasante.
  */
 export const DynamicSun: React.FC<DynamicSunProps> = ({

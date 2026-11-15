@@ -41,9 +41,10 @@ export function useTerrainHeight(
     const at = (c: number, r: number) => data[(r * w + c) * 4] / 255;
 
     return (u: number, v: number) => {
-      // flipY: v = 1 corresponde a la fila 0 de la imagen. Interpolación bilineal.
-      const fx = THREE.MathUtils.clamp(u, 0, 1) * (w - 1);
-      const fy = (1 - THREE.MathUtils.clamp(v, 0, 1)) * (h - 1);
+      // Réplica exacta del muestreo LinearFilter + ClampToEdge de la GPU:
+      // coordenada de texel = uv * N - 0.5 (centros de texel). Con flipY, v = 1 es la fila 0.
+      const fx = THREE.MathUtils.clamp(u * w - 0.5, 0, w - 1);
+      const fy = THREE.MathUtils.clamp((1 - v) * h - 0.5, 0, h - 1);
       const c0 = Math.floor(fx), r0 = Math.floor(fy);
       const c1 = Math.min(c0 + 1, w - 1), r1 = Math.min(r0 + 1, h - 1);
       const tx = fx - c0, ty = fy - r0;

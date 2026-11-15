@@ -5,6 +5,7 @@ import { useLoader } from "@react-three/fiber";
 import * as THREE from "three";
 import { TERRAIN } from "@/lib/geo/polarStereo";
 import { DEM_URL, NORMAL_URL } from "@/lib/geo/useTerrainHeight";
+import { TerrainPedestal } from "@/components/3d_canvas/TerrainPedestal";
 
 export interface LunarSurfaceProps {
   /** Albedo WAC sin sombras fotográficas (delight_wac.py). */
@@ -21,6 +22,10 @@ export interface LunarSurfaceProps {
   roughness?: number;
   metalness?: number;
   wireframe?: boolean;
+  /** Bloque sólido (pedestal) bajo el relieve, estilo maqueta. */
+  showPedestal?: boolean;
+  pedestalDepth?: number;
+  pedestalColor?: string;
   children?: React.ReactNode;
 }
 
@@ -40,6 +45,9 @@ export const LunarSurface: React.FC<LunarSurfaceProps> = ({
   roughness = 1,
   metalness = 0,
   wireframe = false,
+  showPedestal = true,
+  pedestalDepth = 4,
+  pedestalColor = "#0b0e14",
   children,
 }) => {
   const [colorMap, displacementMap, normalMap] = useLoader(THREE.TextureLoader, [
@@ -86,6 +94,17 @@ export const LunarSurface: React.FC<LunarSurfaceProps> = ({
           wireframe={wireframe}
         />
       </mesh>
+      {showPedestal && (
+        <TerrainPedestal
+          size={size}
+          segments={segments}
+          demUrl={demUrl}
+          displacementScale={displacementScale}
+          displacementBias={displacementBias}
+          depth={pedestalDepth}
+          color={pedestalColor}
+        />
+      )}
       {children}
     </group>
   );

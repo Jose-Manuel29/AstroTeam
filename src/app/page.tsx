@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import presetSitesData from "../../public/data/preset_sites.json";
-import type { PresetSite, PresetSitesFile } from "@/lib/context/SiteContext";
+import {
+  SiteProvider,
+  useSiteContext,
+  type PresetSite,
+  type PresetSitesFile,
+} from "@/lib/context/SiteContext";
 import { latLonToPlane } from "@/lib/geo/polarStereo";
 import { LunarMapViewer } from "@/components/3d_canvas/LunarMapViewer";
 
@@ -16,21 +21,21 @@ const ZONE_COLOR_PRESETS = [
   { label: "Rosa Alerta", value: "#F472B6" },
 ];
 
-export default function Home() {
-  const [selectedSite, setSelectedSite] = useState<PresetSite | null>(null);
+function LunarDashboard() {
+  const { selectedSite, setSelectedSite, zoneOffset, setZoneOffset } = useSiteContext();
   const [flightId, setFlightId] = useState(0);
 
   // Estados dinámicos inyectables hacia el LunarMapViewer:
   const [sunAngle, setSunAngle] = useState(30);
-
-  // Zonas: offset reducido a 0.05 según especificación
-  const [zoneOffset, setZoneOffset] = useState(0.05);
   const [zoneColor, setZoneColor] = useState("#FF9F1C");
   const [zoneOpacity, setZoneOpacity] = useState(0.75);
   const [zoneScale, setZoneScale] = useState(1.0);
   const [zonesVisible, setZonesVisible] = useState(true);
   const [markersVisible, setMarkersVisible] = useState(true);
   const [terrainWireframe, setTerrainWireframe] = useState(false);
+  const [pedestalVisible, setPedestalVisible] = useState(true);
+  const [earthVisible, setEarthVisible] = useState(true);
+  const [gridVisible, setGridVisible] = useState(true);
 
   // Control para desplegar/contraer panel de configuración
   const [showConfig, setShowConfig] = useState(true);
@@ -57,8 +62,9 @@ export default function Home() {
           visible: zonesVisible,
           color: zoneColor,
           edgeOpacity: zoneOpacity,
-          offset: zoneOffset, // Inyección dinámica del offset (0.5 por defecto)
+          offset: zoneOffset,
           sizeScale: zoneScale,
+          emissiveIntensity: 0.8,
         }}
         markers={{
           visible: markersVisible,
@@ -66,7 +72,14 @@ export default function Home() {
         }}
         terrain={{
           wireframe: terrainWireframe,
+          showPedestal: pedestalVisible,
         }}
+        earth={{
+          visible: earthVisible,
+          // PROVISIONAL: se reemplazará por la efeméride real del backend
+          targetPosition: [40, 50, -30],
+        }}
+        grid={{ visible: gridVisible, height: 25, opacity: 0.12 }}
       />
 
       {/* ---------------- 2. HUD: Barra Superior (Control Solar) ---------------- */}
@@ -151,16 +164,16 @@ export default function Home() {
 
           {showConfig && (
             <div className="flex flex-col gap-3">
-              {/* Offset (Lift) de la zona */}
+              {/* Offset Vertical (Zona) conectado al SiteContext */}
               <div className="flex flex-col gap-1">
                 <div className="flex justify-between text-[11px]">
-                  <span className="text-slate-300">Offset Vertical (Zona)</span>
+                  <span className="text-slate-300">Offset Vertical</span>
                   <span className="font-mono text-cyan-300">{zoneOffset.toFixed(2)}</span>
                 </div>
                 <input
                   type="range"
-                  min={0.05}
-                  max={0.8}
+                  min={0.02}
+                  max={5.0}
                   step={0.01}
                   value={zoneOffset}
                   onChange={(e) => setZoneOffset(Number(e.target.value))}
@@ -258,11 +271,39 @@ export default function Home() {
                     className="accent-amber-400 rounded"
                   />
                 </label>
+                {(
+                  [
+                    ["Pedestal (Maqueta)", pedestalVisible, setPedestalVisible],
+                    ["Vector Tierra", earthVisible, setEarthVisible],
+                    ["Rejilla Holográfica", gridVisible, setGridVisible],
+                  ] as const
+                ).map(([label, checked, setter]) => (
+                  <label
+                    key={label}
+                    className="flex items-center justify-between text-[11px] text-slate-300 cursor-pointer"
+                  >
+                    <span>{label}</span>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => setter(e.target.checked)}
+                      className="accent-cyan-400 rounded"
+                    />
+                  </label>
+                ))}
               </div>
             </div>
           )}
         </div>
       </aside>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <SiteProvider>
+      <LunarDashboard />
+    </SiteProvider>
   );
 }

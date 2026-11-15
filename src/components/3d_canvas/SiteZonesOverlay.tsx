@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo } from "react";
 import { useLoader } from "@react-three/fiber";
 import * as THREE from "three";
-import type { PresetSite } from "@/lib/context/SiteContext";
+import { useSiteContext, type PresetSite } from "@/lib/context/SiteContext";
 import { TERRAIN, latLonToPlane } from "@/lib/geo/polarStereo";
 import { DEM_URL, NORMAL_URL } from "@/lib/geo/useTerrainHeight";
 
@@ -12,24 +12,25 @@ import { DEM_URL, NORMAL_URL } from "@/lib/geo/useTerrainHeight";
  * Proporción de la escena: 100 unidades = 900 km -> 1 unidad 3D = 9 km reales.
  */
 export const SITE_ZONE_DIAMETERS_KM: Record<string, number> = {
-  "shackleton": 21,
-  "malapert": 10,
-  "connecting": 25,
-  "faustini": 39,
-  "schrodinger": 312,
+  shackleton: 21,
+  malapert: 10,
+  connecting: 25,
+  faustini: 39,
+  schrodinger: 312,
   "schrödinger": 312,
-  "drygalski": 149,
+  drygalski: 149,
 };
 
 export const KM_PER_UNIT = 9.0;
+
+/** Elevación fija de la malla de zona sobre el terreno (anti z-fighting). */
+export const ZONE_LIFT = 0.02;
 
 /** Diámetro real en km según el ID o nombre del sitio */
 export function getSiteZoneKm(siteId: string, fallbackKm: number = 25): number {
   const idLower = siteId.toLowerCase();
   for (const [key, km] of Object.entries(SITE_ZONE_DIAMETERS_KM)) {
-    if (idLower.includes(key)) {
-      return km;
-    }
+    if (idLower.includes(key)) return km;
   }
   return fallbackKm;
 }
@@ -42,24 +43,25 @@ export function getSiteZoneSize(siteId: string, fallbackKm: number = 25): number
 export interface SiteZonesOverlayProps {
   sites: PresetSite[];
   selectedId?: string | null;
-  /** Multiplicador o factor de escala global para el tamaño de las zonas (por defecto 1.0) */
+  /** Multiplicador global del tamaño de las zonas (por defecto 1.0) */
   sizeScale?: number;
-  /** Sobrescrituras específicas de tamaño por sitio { [siteId]: unidades } */
+  /** Sobrescrituras de tamaño por sitio { [siteId]: unidades } */
   sizeOverrides?: Record<string, number>;
-  segments?: number;
-  /** Color temático de la zona (hex o THREE.Color). Por defecto: #FF9F1C (Ámbar) */
+  /** Geometría del terreno base (debe coincidir con <LunarSurface>) */
+  terrainSize?: number;
+  terrainSegments?: number;
+  displacementScale?: number;
+  displacementBias?: number;
+  /** Color temático de la zona. Por defecto: #FF9F1C (Ámbar) */
   color?: THREE.ColorRepresentation;
-  /** Opacidad máxima en el borde exterior del cuadrado (el centro siempre es 0). */
+  /** Opacidad máxima en el borde exterior (el centro siempre es 0). */
   edgeOpacity?: number;
-  /** Desplazamiento vertical sobre el terreno (offset / lift) para evitar z-fighting. */
+  /** Elevación sobre el terreno. Por defecto 0.02 (ZONE_LIFT). */
   offset?: number;
-  /** Alias legado para retrocompatibilidad con lift */
-  lift?: number;
   /** Exponente de curvatura del gradiente del shader */
   gradientPower?: number;
   /** Intensidad emisiva base para visibilidad en zonas oscuras */
   emissiveIntensity?: number;
-  /** Permite ocultar/mostrar todas las zonas dinámicamente */
   visible?: boolean;
 }
 
@@ -69,25 +71,73 @@ interface ZoneUniforms {
 }
 
 /**
- * Crea un MeshStandardMaterial con el displacement/normal map recortados a la
- * ventana UV exacta de la zona según su posición y tamaño individual en el terreno de 100x100.
+ * Ventana de la zona ALINEADA A LA REJILLA del terreno.
+ * ----------------------------------------------------
+ * Por qué flotaban: el terreno sólo evalúa el DEM en sus vértices (cada 100/512 u)
+ * e interpola linealmente entre ellos; la zona usaba 64 segmentos propios, así que
+ * sus vértices caían ENTRE los del terreno y muestreaban picos del DEM que la malla
+ * base no representa → partes de la zona por encima (flotando) y otras por debajo.
+ *
+ * Solución: el plano de la zona usa exactamente los mismos vértices que el terreno.
+ *   cell     = terrainSize / terrainSegments
+ *   (iu, iv) = vértice del terreno más cercano al sitio (en espacio UV · segments)
+ *   n        = nº de celdas por lado (par, para que el sitio quede en el centro)
+ *   repeat   = [n / segments, n / segments]          ( = sizeX/100, sizeZ/100 )
+ *   offset   = [(iu - n/2) / segments, (iv - n/2) / segments]
+ * Ejes: u = (x + 50)/100 ;  v = (50 - z)/100   (el plano está rotado -90° en X,
+ * por lo que la V de la textura crece hacia -Z; con +Z el relieve saldría espejado).
+ * Así cada vértice de la zona muestrea el MISMO texel que el vértice del terreno
+ * situado debajo y la superficie coincide al 100 %; sólo se separa ZONE_LIFT.
  */
+function computeGridWindow(
+  x: number,
+  z: number,
+  requestedSize: number,
+  terrainSize: number,
+  segments: number
+) {
+  const cell = terrainSize / segments;
+  const half = terrainSize / 2;
+
+  const iu = Math.round(((x + half) / terrainSize) * segments);
+  const iv = Math.round(((half - z) / terrainSize) * segments);
+
+  let n = Math.max(2, Math.round(requestedSize / cell));
+  if (n % 2 === 1) n += 1;
+
+  const i0 = iu - n / 2;
+  const j0 = iv - n / 2;
+
+  return {
+    n,
+    size: n * cell,
+    repeat: new THREE.Vector2(n / segments, n / segments),
+    offset: new THREE.Vector2(i0 / segments, j0 / segments),
+    // Centro exacto del vértice de la rejilla en coordenadas de mundo
+    center: { x: iu * cell - half, z: half - iv * cell },
+  };
+}
+
 function createZoneMaterial(
   dem: THREE.Texture,
   normal: THREE.Texture,
-  uv0: THREE.Vector2,
-  repeat: number,
+  offset: THREE.Vector2,
+  repeat: THREE.Vector2,
   color: THREE.ColorRepresentation,
   edgeOpacity: number,
   gradientPower: number,
-  emissiveIntensity: number
+  emissiveIntensity: number,
+  displacementScale: number,
+  displacementBias: number
 ) {
   const crop = (src: THREE.Texture) => {
-    const t = src.clone();
+    const t = src.clone(); // comparte la fuente GPU con el terreno
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
-    t.repeat.set(repeat, repeat);
-    t.offset.copy(uv0);
-    t.updateMatrix();
+    t.repeat.copy(repeat);
+    t.offset.copy(offset);
+    t.rotation = 0;
+    t.center.set(0, 0);
+    t.updateMatrix(); // uv' = uv * repeat + offset
     return t;
   };
 
@@ -106,14 +156,14 @@ function createZoneMaterial(
     roughness: 0.9,
     metalness: 0,
     displacementMap,
-    displacementScale: TERRAIN.displacementScale,
-    displacementBias: TERRAIN.displacementBias,
+    displacementScale,
+    displacementBias,
     normalMap,
     transparent: true,
     depthWrite: false,
     polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
     side: THREE.DoubleSide,
   });
 
@@ -139,76 +189,68 @@ uniform float uGradientPower;`
 vec2 zq = abs(vZoneUv - 0.5) * 2.0;
 float zd = max(zq.x, zq.y);
 float zoneAlpha = uEdgeOpacity * pow(zd, uGradientPower);
-// Contorno sutil en el perímetro del cuadrado
 float zw = fwidth(zd) * 1.5;
 zoneAlpha = max(zoneAlpha, smoothstep(1.0 - 0.02 - zw, 1.0 - 0.02, zd) * min(1.0, uEdgeOpacity + 0.2));
 diffuseColor.a = zoneAlpha;`
       );
   };
-  material.customProgramCacheKey = () => "site-zone-gradient-v2";
+  material.customProgramCacheKey = () => "site-zone-gradient-v3";
 
   return { material, uniforms, textures: [displacementMap, normalMap] };
 }
 
 export const SiteZonesOverlay: React.FC<SiteZonesOverlayProps> = ({
   sites,
-  selectedId,
+  selectedId: selectedIdProp,
   sizeScale = 1.0,
   sizeOverrides,
-  segments = 64,
+  terrainSize = TERRAIN.size,
+  terrainSegments = TERRAIN.segments,
+  displacementScale = TERRAIN.displacementScale,
+  displacementBias = TERRAIN.displacementBias,
   color = "#FF9F1C",
   edgeOpacity = 0.7,
   offset: offsetProp,
-  lift: liftProp,
   gradientPower = 1.6,
-  emissiveIntensity = 0.25,
+  emissiveIntensity = 0.8,
   visible = true,
 }) => {
-  const effectiveOffset = offsetProp ?? liftProp ?? 0.05;
+  const { selectedSite: contextSite, zoneOffset: contextOffset } = useSiteContext();
+  const selectedId = selectedIdProp !== undefined ? selectedIdProp : contextSite?.id ?? null;
+  const effectiveOffset = offsetProp !== undefined ? offsetProp : contextOffset;
 
   const [dem, normal] = useLoader(THREE.TextureLoader, [DEM_URL, NORMAL_URL]);
 
   const zones = useMemo(() => {
     return sites
-      .map((site) => ({ site, p: latLonToPlane(site.lat, site.lon) }))
+      .map((site) => ({ site, p: latLonToPlane(site.lat, site.lon, terrainSize) }))
       .filter(({ p }) => p.inside)
       .map(({ site, p }) => {
-        // Cálculo del tamaño dinámico según tabla de diámetros reales (km / 9)
-        const baseSize = sizeOverrides?.[site.id] ?? getSiteZoneSize(site.id);
-        const dynamicSize = Math.max(0.5, baseSize * sizeScale);
+        const requested = Math.max(0.5, (sizeOverrides?.[site.id] ?? getSiteZoneSize(site.id)) * sizeScale);
+        const win = computeGridWindow(p.x, p.z, requested, terrainSize, terrainSegments);
 
-        // Geometría cuadrada individual adaptada a su tamaño de interés
-        const geometry = new THREE.PlaneGeometry(dynamicSize, dynamicSize, segments, segments);
-
-        // Ventana UV específica de este sitio sobre el DEM general
-        const repeat = dynamicSize / TERRAIN.size;
-        const uv0 = new THREE.Vector2(
-          0.5 + (p.x - dynamicSize / 2) / TERRAIN.size,
-          0.5 - (p.z + dynamicSize / 2) / TERRAIN.size
-        );
+        // Mismo número de segmentos que celdas del terreno → vértices coincidentes
+        const geometry = new THREE.PlaneGeometry(win.size, win.size, win.n, win.n);
 
         const matData = createZoneMaterial(
           dem,
           normal,
-          uv0,
-          repeat,
+          win.offset,
+          win.repeat,
           color,
           edgeOpacity,
           gradientPower,
-          emissiveIntensity
+          emissiveIntensity,
+          displacementScale,
+          displacementBias
         );
 
-        return {
-          site,
-          p,
-          dynamicSize,
-          geometry,
-          ...matData,
-        };
+        return { site, center: win.center, geometry, ...matData };
       });
-  }, [sites, dem, normal, sizeScale, sizeOverrides, segments, color, edgeOpacity, gradientPower, emissiveIntensity]);
+    // color/edgeOpacity/gradient/emissive se actualizan en caliente más abajo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sites, dem, normal, sizeScale, sizeOverrides, terrainSize, terrainSegments, displacementScale, displacementBias]);
 
-  // Limpieza de geometrías, materiales y texturas
   useEffect(
     () => () =>
       zones.forEach((z) => {
@@ -219,7 +261,6 @@ export const SiteZonesOverlay: React.FC<SiteZonesOverlayProps> = ({
     [zones]
   );
 
-  // Actualización dinámica y reactiva del color
   useEffect(() => {
     zones.forEach((z) => {
       z.material.color.set(color);
@@ -227,13 +268,12 @@ export const SiteZonesOverlay: React.FC<SiteZonesOverlayProps> = ({
     });
   }, [zones, color]);
 
-  // Resaltado dinámico al seleccionar un sitio
   useEffect(() => {
     zones.forEach((z) => {
       const active = z.site.id === selectedId;
       z.uniforms.uEdgeOpacity.value = active ? Math.min(1.0, edgeOpacity + 0.2) : edgeOpacity;
       z.uniforms.uGradientPower.value = gradientPower;
-      z.material.emissiveIntensity = active ? emissiveIntensity * 2.5 : emissiveIntensity;
+      z.material.emissiveIntensity = active ? emissiveIntensity * 1.35 : emissiveIntensity;
     });
   }, [zones, selectedId, edgeOpacity, gradientPower, emissiveIntensity]);
 
@@ -241,12 +281,12 @@ export const SiteZonesOverlay: React.FC<SiteZonesOverlayProps> = ({
 
   return (
     <group>
-      {zones.map(({ site, p, geometry, material }) => (
+      {zones.map(({ site, center, geometry, material }) => (
         <mesh
           key={site.id}
           geometry={geometry}
           material={material}
-          position={[p.x, effectiveOffset, p.z]}
+          position={[center.x, effectiveOffset, center.z]}
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
           renderOrder={1}

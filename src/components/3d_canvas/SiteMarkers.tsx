@@ -45,7 +45,7 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
   onSelectSite,
 }) => {
   const currentHeight = active ? poleHeight * 1.4 : poleHeight;
-  const radius = active ? 0.035 : 0.022;
+  const radius = 0.025; // grosor (diámetro) = 0.05
 
   const zoneKm = getSiteZoneKm(site.id);
   const htmlRef = useRef<HTMLDivElement>(null);
@@ -71,11 +71,12 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
       <mesh position={[0, currentHeight / 2, 0]}>
         <cylinderGeometry args={[radius, radius, currentHeight, 8]} />
         <meshStandardMaterial
-          color="#FFFFFF"
-          emissive="#FFFFFF"
-          emissiveIntensity={active ? 0.95 : 0.55}
+          color="#ffffff"
+          emissive="#ffffff"
+          emissiveIntensity={2}
           roughness={0.2}
-          metalness={0.1}
+          metalness={0}
+          toneMapped={false}
         />
       </mesh>
 
