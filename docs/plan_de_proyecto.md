@@ -41,22 +41,15 @@ Para garantizar un producto completo y competitivo, la plataforma debe cumplir c
 
 ---
 
-## 3. Flujo de Usuario de la Web-App (User Flow)
+## 3. Flujo de Usuario y Vistas del Sprint (User Flow)
 
-La aplicación seguirá un recorrido de tres etapas (embudo de análisis):
+La aplicación implementa un embudo de 3 vistas clave para el sprint de 48 horas:
 
-1. **Landing Page:**  
-   Pantalla de inicio atractiva que presenta el reto de Artemis y ofrece la entrada a la herramienta.
-
-2. **Seleccionador de Ubicaciones (Vista Global/Regional):**  
-   - Interfaz montada sobre el modelo 3D global o regional.
-   - **UI Card:** Panel de input donde el usuario define sus requerimientos (filtros/sliders) y ajusta el slider temporal.
-   - **Acción:** El mapa resalta o filtra automáticamente las ubicaciones que cumplen con los criterios establecidos.
-
-3. **Vista Especializada (Vista Local / Análisis Profundo):**  
-   - Al seleccionar un sitio viable, la cámara hace zoom al modelo topográfico 3D de alta resolución de esa zona específica.
-   - Se muestra el cumplimiento de métricas detalladas.
-   - Se despliegan capas de datos científicos y ambientales (topografía, albedo, hielo, pendientes, etc.) con la iluminación dinámica interactuando en tiempo real.
+| Vista | URL | Propósito | Componentes Clave |
+| :--- | :--- | :--- | :--- |
+| **1. Landing Page** | `/` | Presentación del reto Artemis de la NASA, contexto polar y entrada a la herramienta. | Hero Section con estética HUD, botón CTA a exploración, resumen de datos e instrumentos LOLA/LROC. |
+| **2. Locations Picker with 3D Global Model** | `/explore` | Selección y filtrado de sitios candidatos de alunizaje sobre el globo lunar completo. | Canvas 3D con `MoonGlobe` (`public/models/moon.glb`), pins interactivos de sitios Artemis, panel de filtros de viabilidad (% luz y pendiente) y badge de viabilidad en tiempo real. |
+| **3. Detail View with 3D Map and 3D Global Model** | `/site/:id` | Análisis local profundo del terreno de alunizaje y telemetría de misión. | Canvas 3D local con `LunarSurface` (DEM LOLA + sombras rasantes dinámicas), minimapa 3D complementario (`OrbitMinimap` con `moon.glb`), panel de telemetría orbital y controlador temporal. |
 
 ---
 
@@ -64,12 +57,14 @@ La aplicación seguirá un recorrido de tres etapas (embudo de análisis):
 
 Para mantener la aplicación web ultraligera y científicamente atractiva, utilizaremos dos estrategias de renderizado basadas en el nivel de detalle (*Level of Detail* - LOD):
 
-### A. Vista Global (Navegación General)
+### A. Vista Global (Navegación General y Minimapa)
 - **Técnica:** Uso de un modelo `.glb` estático de la NASA (SVS ID 14959) versión "COLOR MAP ONLY".
-- **Propósito:** Permitir al usuario rotar la Luna libremente y seleccionar sitios de interés (Flujo paso 2) con cero lag. Se evita el mapa de relieve global para no sufrir el defecto de "polos distorsionados".
+- **Ubicación de Archivo:** `frontend/public/models/moon.glb` (cargado vía `/models/moon.glb` con `useGLTF`).
+- **Propósito:** Permitir al usuario rotar la Luna libremente y seleccionar sitios de interés (Flujo paso 2) y servir como minimapa de orientación en la vista de detalle (Flujo paso 3) con cero lag. Se evita el mapa de relieve global para no sufrir el defecto de "polos distorsionados".
 
 ### B. Vista Regional y Local (Análisis de Sitios Específicos)
-- **Técnica:** Reemplazar la esfera por una geometría plana (`PlaneGeometry`) subdividida, aplicando texturas de elevación (`displacementMap`) e imágenes de alta resolución.
+- **Técnica:** Reemplazar la esfera por una geometría plana (`PlaneGeometry`) subdividida, aplicando texturas de elevación (`displacementMap`), normales y albedo corregido.
+- **Ubicación de Texturas:** `frontend/public/textures/lunar_displacement.png`, `lunar_normal.png`, `lunar_color.webp`.
 - **Propósito:** Simular el terreno local exacto para la Vista Especializada.
 - **Iluminación:** Permite que una luz direccional dinámica simule las sombras alargadas reales y las "regiones en sombra permanente" (PSR) controladas por Three.js, no por la fotografía.
 
@@ -125,3 +120,83 @@ Para manejar los archivos científicos masivos (`.tif`) de varios Gigabytes y ha
 | **Bloque 3** | Horas 16 a 30 | **3D Avanzado y Filtros:** Implementar Vistas Regional y Local (componente `LunarSurface` con displacement maps), inputs de "criterios aceptables" y render de vectores hacia la Tierra. | **PARCIAL (Vista Local 3D lista)** |
 | **Bloque 4** | Horas 30 a 42 | **UI/UX y Modos:** Separación de perfiles (Técnico vs Educativo), overlays científicos (Slope/PSR), métricas avanzadas y despliegue inicial (Vercel/Netlify). | Pendiente |
 | **Bloque 5** | Horas 42 a 48 | **Pitch y Respaldo:** Grabación de video demo de 2 minutos y ensayo del pitch. | Pendiente |
+
+---
+
+## 7. Sistema de Diseño y Tipografía (Cyber-Aeroespacial & Brutalist)
+
+Para asegurar coherencia visual con la estética de telemetría y centro de control (*Mission Control*), la interfaz adopta el siguiente sistema tipográfico:
+
+| Nivel UI | Fuente | Peso | Ejemplo de Uso |
+| :--- | :--- | :--- | :--- |
+| **Hero / Logo** | `Major Mono Display` | 400 Regular (minúsculas) | `astRo teaM // artemis south pole` |
+| **Cabeceras HUD / Secciones** | `Space Grotesk` | 700 Bold | `ANÁLISIS DE ILUMINACIÓN POLAR, SITIOS VIABLES` |
+| **Botones CTA** | `Inter` | 700 Bold (`1.25rem` / `20px`) | `touch down` |
+| **Cuerpo / Textos / Labels** | `Inter` | 400 Regular / 500 Medium | Explicaciones de criterios, descripciones de cráteres, modales de ayuda |
+
+*(Nota: Por ahora se prescinde de `Space Mono`, unificando botones CTA y cuerpo bajo `Inter`).*
+
+### Paleta Cromática Oficial (Adobe Color - Actualizada Lunar Regolith)
+- **Regolith Warm Cream (`#D9CEC5`):** Superficies de botones tácticos, cápsulas glassmorphism, acentos sutiles de suelo lunar.
+- **Charcoal Dark Slate (`#3B3B40`):** Textos oscuros en botones, bordes de alto contraste y tarjetas HUD.
+- **Space Slate Purple / Dust (`#7F7B8C`):** Elementos secundarios, retículas de telemetría y badges neutrales.
+- **Lunar Ochre / Earthshine (`#A6948A`):** Iluminación solar rasante suave, transiciones térmicas y marcadores.
+- **Deep Space Obsidian (`#0D0D0D`):** Fondo general del viewport espacial, lienzo principal y sombras permanentes (PSR).
+
+### Sistema de Iconografía Oficial
+- **Biblioteca:** `Phosphor Icons` (`@phosphor-icons/react`).
+- **Estilo:** `regular` y `bold` para interfaz HUD táctica y controles de telemetría.
+
+---
+
+## 8. Arquitectura y Estructura de Carpetas del Frontend
+
+Basado en el stack técnico definido para el proyecto (**React 18**, **Three.js / React Three Fiber / Drei**, **Vite**, **Tailwind CSS** y **Phosphor Icons (`@phosphor-icons/react`)**):
+
+```text
+AstroTeam/
+├── backend/                             # API y procesamiento de efemérides (FastAPI / Python)
+├── docs/                                # Documentación y plan de proyecto
+│   └── plan_de_proyecto.md
+├── frontend/                            # Aplicación web cliente (Vite + React 18 + R3F)
+│   ├── public/
+│   │   ├── models/                      # Modelos 3D globales (GLB)
+│   │   │   ├── moon.glb                 # <-- SUBIR AQUÍ EL MODELO GLOBAL DE LA LUNA
+│   │   │   └── README.md
+│   │   └── textures/                    # Texturas científicas procesadas (LOLA / LROC)
+│   │       ├── lunar_color.webp         # Skin/Albedo WAC corregido
+│   │       ├── lunar_displacement.png   # DEM LOLA 8-bit normalizado
+│   │       └── lunar_normal.png         # Normal map 3 bandas para micro-relieve
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── 3d_canvas/               # Componentes Three.js / R3F
+│   │   │   │   ├── LunarSurface.tsx     # Terreno local 3D con displacement y sombras
+│   │   │   │   ├── MoonGlobe.tsx        # Globo lunar global 3D con pins interactivos
+│   │   │   │   ├── OrbitMinimap.tsx     # Minimapa 3D de contexto polar global
+│   │   │   │   └── LightingRig.tsx      # Rig de iluminación solar y vector Tierra
+│   │   │   ├── hud/                     # Paneles de control y telemetría táctica
+│   │   │   │   ├── TelemetryCard.tsx    # Métricas de azimut, elevación y DTE
+│   │   │   │   ├── TimelineSlider.tsx   # Controlador temporal UTC
+│   │   │   │   ├── ViabilityDrawer.tsx  # Filtros de pendiente y % iluminación
+│   │   │   │   └── ProfileSwitcher.tsx  # Switcher Entusiasta vs Planificador
+│   │   │   └── navigation/
+│   │   │       └── Navbar.tsx           # Barra superior HUD
+│   │   ├── views/                       # Vistas del flujo del sprint
+│   │   ├── LandingView.tsx              # URL: / (Landing Page)
+│   │   ├── LocationPickerView.tsx       # URL: /explore (Locations Picker con globo 3D)
+│   │   └── SiteDetailView.tsx           # URL: /site/:id (Detalle con terreno y minimapa)
+│   ├── data/
+│   │   └── landingSites.ts              # Dataset de sitios candidatos Artemis
+│   ├── types/
+│   │   └── index.ts                     # Definiciones TypeScript de efemérides y sitios
+│   ├── App.tsx                          # Orquestador de vistas y navegación SPA
+│   ├── main.tsx                         # Punto de entrada React
+│   └── index.css                        # Estilos globales y utilidades Tailwind
+│   ├── index.html                       # Entry HTML con fuentes Google Fonts
+│   ├── package.json                     # Dependencias y scripts de construcción
+│   ├── tailwind.config.js               # Configuración de tokens y fuentes
+│   ├── tsconfig.json                    # Configuración de TypeScript
+│   └── vite.config.ts                   # Configuración de empaquetado Vite
+```
+
+
