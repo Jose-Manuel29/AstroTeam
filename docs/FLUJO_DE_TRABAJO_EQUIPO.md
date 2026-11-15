@@ -13,7 +13,7 @@
 | **Rol 1** | **Tú (Backend & Datos)** | Motor de efemérides (Skyfield), Supabase, pipeline GDAL y endpoints de FastAPI. | Datasets precalculados, script SQL de Supabase y API REST en vivo. |
 | **Rol 2** | **Compañero Datos** | Descargar y aislar GeoTIFFs científicos de NASA Moon Trek / PDS. | Archivos crudos `lola_dem.tif` y `wac_mosaic.tif` en `raw_data/`. |
 | **Rol 3** | **Compañero 3D** | Entorno Three.js / React Three Fiber, relieve lunar e iluminación rasante dinámica. | Canvas 3D con LOD (esfera global + plano regional con sombras dinámicas). |
-| **Rol 4** | **Compañero Frontend** | Next.js, Tailwind CSS, slider de línea de tiempo y paneles analíticos. | Dashboard web responsivo desplegado en Vercel con perfiles de usuario. |
+| **Rol 4** | **Compañero Frontend** | Vite, React, Three.js, slider de línea de tiempo y paneles analíticos. | Dashboard web responsivo conectado a FastAPI y listo para desplegar en Vercel. |
 
 ---
 
@@ -37,7 +37,7 @@
                 ▼                               ▼
  ┌─────────────────────────────┐ ┌─────────────────────────────┐
  │        COMPAÑERO 3D         │ │     COMPAÑERO FRONTEND      │
- │  (Three.js / React Canvas)  │ │   (Next.js / Tailwind UI)   │
+ │  (Three.js / React Canvas)  │ │     (Vite / React UI)       │
  │                             │ │                             │
  │ • DisplacementMap del DEM   │ │ • Consume API de FastAPI    │
  │ • Vector de luz solar       │ │ • Slider de tiempo a 60 FPS │
@@ -99,13 +99,15 @@ El catálogo y los cronogramas viven en Supabase. La aplicación final no lee el
    .\venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
    ```
    Prueba `GET http://localhost:8000/api/sites` y `GET http://localhost:8000/api/sites/shackleton-rim/timeline`; el segundo debe devolver 720 puntos. El archivo `backend/.env` contiene la clave pública para lecturas. El SQL Editor realiza la carga inicial; `SUPABASE_SERVICE_ROLE_KEY` solo se necesita si luego ejecutas `scripts/seed_supabase_dem.py` o `scripts/sync_horizons.py` para escribir desde Python. Nunca la pongas en Vercel.
-7. El frontend descarga el catálogo y, al seleccionar un sitio, una vez el timeline; conserva los puntos en memoria para el slider. No debe consultar Horizons ni Supabase en cada movimiento.
+7. El frontend activo está únicamente en `frontend/` (Vite + React); se eliminaron los archivos duplicados de `src/` en la raíz y los datos estáticos de sitios que ya no se usan.
+8. Al iniciar, el frontend consulta `GET /api/sites`. Al abrir o cambiar de sitio consulta una vez `GET /api/sites/{id}/timeline` y conserva los puntos en memoria. El slider recorre esos puntos sin enviar solicitudes por cada movimiento.
+9. `SiteDetailView` muestra los datos disponibles del timeline: hora UTC, azimut/elevación del Sol y la Tierra, visibilidad, distancia, RTT y fase. La iluminación y el vector a la Tierra siguen la muestra seleccionada. Los valores que la API no provee (por ejemplo, batería, pendiente o producción eléctrica) se muestran como `N/D`, no como mediciones.
 
-Las banderas actuales distinguen los tres criterios del disco: `sol_estado_luz` / `linea_vista_directa` evalúan el centro; `sol_parte_visible` / `tierra_parte_visible` indican que asoma cualquier parte; y `sol_disco_completo_visible` / `tierra_disco_completo_visible` indican que el disco entero supera el horizonte. Las cuentas regresivas de eventos siguen basadas en el centro.
+Las banderas actuales distinguen los tres criterios del disco: `sol_estado_luz` / `linea_vista_directa` evalúan el centro; `sol_parte_visible` / `tierra_parte_visible` indican que asoma cualquier parte; y `sol_disco_completo_visible` / `tierra_disco_completo_visible` indican que el disco entero supera el horizonte. `earth_latency_rtt_sec` es ida y vuelta; la base guarda latencia unidireccional.
 
-Los generadores antiguos [`import_teammate_data.py`](../backend/scripts/import_teammate_data.py) y `generate_presets.py` no se usan como fuente del pipeline final. El estado actual es: datos DEM y cronograma generados localmente; falta ejecutar el SQL en la base remota y hacer la prueba HTTP con esas filas.
+Los generadores antiguos [`import_teammate_data.py`](../backend/scripts/import_teammate_data.py) y `generate_presets.py` no se usan como fuente de datos del frontend. La conexión local se verificó: `GET /api/sites` devuelve 6 sitios y el timeline de cada sitio devuelve 720 puntos. El build de producción de Vite también termina correctamente; queda una advertencia de bundle JavaScript grande que no impide compilar.
 
-**Pendiente del frontend:** mostrar elevación/azimut, banderas de centro/parte/disco completo, distancia, latencia y fase terrestre. `earth_latency_rtt_sec` es ida y vuelta; la base guarda latencia unidireccional.
+**Pendiente para publicar:** desplegar FastAPI y el frontend. En Vercel se debe usar `frontend/` como *Root Directory* y configurar `VITE_API_BASE_URL` con la URL pública de FastAPI. No se debe subir una clave `service_role` al frontend.
 
 ---
 
@@ -150,7 +152,7 @@ Los generadores antiguos [`import_teammate_data.py`](../backend/scripts/import_t
 
 ---
 
-### Paso 5: Validación y Despliegue del Backend FastAPI (Para cálculo en vivo)
+### Paso 5: Despliegue del Backend FastAPI (Pendiente)
 Para permitir que los evaluadores seleccionen cualquier punto libre de la Luna:
 1. **Prueba local**:
    ```powershell
@@ -159,12 +161,13 @@ Para permitir que los evaluadores seleccionen cualquier punto libre de la Luna:
    uvicorn app.main:app --reload --port 8000
    ```
    - Entra a [http://localhost:8000/docs](http://localhost:8000/docs) y ejecuta una prueba en `POST /api/custom-site`.
-2. **Despliegue opcional en la nube**:
+2. **Despliegue en la nube**:
    - Conecta el repositorio de GitHub a un servicio gratuito como [Render.com](https://render.com/) o [Railway.app](https://railway.app/).
    - Comando de inicio (*Start command*):
      ```bash
      uvicorn app.main:app --host 0.0.0.0 --port $PORT
      ```
+   - Configura las variables de Supabase en el servicio del backend. Luego configura `VITE_API_BASE_URL` en Vercel con la URL pública de esta API.
 
 ---
 
@@ -172,13 +175,13 @@ Para permitir que los evaluadores seleccionen cualquier punto libre de la Luna:
 
 | Hito | Emisor | Receptor | Archivo / Recurso | Estado |
 | :--- | :--- | :--- | :--- | :--- |
-| **Modelo relacional** | Rol 1 (Tú) | Supabase | Migración y seed en `backend/datos/supabase_horizons_setup.sql` | ⏳ Ejecutar SQL |
-| **Conexión FastAPI-Supabase** | Rol 1 (Tú) | Supabase | Catálogo, perfiles y timeline | ⏳ Validar tras ejecutar SQL |
+| **Modelo relacional** | Rol 1 (Tú) | Supabase | Migración y seed en `backend/datos/supabase_horizons_setup.sql` | ✅ SQL ejecutado; lecturas locales comprobadas |
+| **Conexión FastAPI-Supabase** | Rol 1 (Tú) | Supabase | Catálogo, perfiles y timeline | ✅ Endpoints locales comprobados |
 | **Metadatos y perfiles reales de 6 sitios** | Rol 1 (Tú) | DEM → Supabase | 6 sitios y 2,160 puntos listos localmente | ✅ CSVs y SQL listos |
 | **Cronograma JPL horario (30 días)** | Rol 1 (Tú) | Horizons → Supabase | 4,320 puntos generados | ✅ CSV y SQL listos |
-| **Slider y paneles conectados** | Rol 4 (Front) | FastAPI | Centro, disco parcial/completo, distancia y latencia | ⏳ Pendiente |
-| **Variables de entorno y RLS de producción** | Rol 1 (Tú) | Backend / Supabase | Clave pública configurada; SQL RLS listo | ⏳ Aplicar SQL; falta clave privada solo para futuras escrituras Python |
+| **Slider y paneles conectados** | Rol 4 (Front) | FastAPI | Timeline en memoria; hora, Sol/Tierra, visibilidad y telemetría disponible | ✅ Integrado y probado localmente |
+| **Variables de entorno y RLS de producción** | Rol 1 (Tú) | Backend / Supabase | URL pública de FastAPI para Vercel; secretos solo en el backend | ⏳ Configurar al desplegar; no publicar la clave privada |
 | **GeoTIFFs Crudos** | Rol 2 (Datos) | Rol 1 (Tú) | Dos DEM LOLA en `raw_data/` | ✅ Descargados y procesados |
 | **Texturas 3D** | Rol 1 (Tú) | Rol 3 (3D) | `output/textures/displacement_lola_2k.png` | ⏳ Falta el mosaico WAC |
-| **Endpoints en Vivo**| Rol 1 (Tú) | Rol 4 (Front) | `POST /api/custom-site` | ✅ Listo |
+| **Endpoints consumidos por el frontend** | Rol 1 (Tú) | Rol 4 (Front) | `GET /api/sites` y `GET /api/sites/{id}/timeline` | ✅ Probados localmente |
 | **Contrato Técnico** | Rol 1 (Tú) | Todo el equipo | `docs/CONTRATO_ESPECIFICACIONES.md` | ✅ Listo |

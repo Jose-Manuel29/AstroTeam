@@ -8,16 +8,8 @@ export interface LandingSite {
   };
   elevationMeters: number;
   illuminationAvgPercent: number;
-  slopeDegrees: number;
-  permanentShadowAreaKm2: number;
   earthVisibilityPercent: number;
-  description: string;
-  scientificValue: string;
-  textures?: {
-    skin?: string;
-    displacement?: string;
-    normal?: string;
-  };
+  mission?: string | null;
 }
 
 export interface EphemerisEntry {

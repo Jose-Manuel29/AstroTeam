@@ -15,11 +15,8 @@ export interface EarthVectorProps {
   selectedSite?: PresetSite | null;
   /** Punto de partida por defecto cuando no hay sitio seleccionado. */
   origin?: [number, number, number];
-  /**
-   * Posición/dirección de la Tierra en coordenadas de escena.
-   * PROVISIONAL: el backend (ephemeris.py → sub_earth_lat/lon) proveerá el valor real.
-   */
-  targetPosition?: [number, number, number];
+  /** Desplazamiento desde el sitio hacia la Tierra en coordenadas de escena. */
+  targetDirection?: [number, number, number];
   terrainSize?: number;
   color?: THREE.ColorRepresentation;
   label?: string;
@@ -40,7 +37,7 @@ export interface EarthVectorProps {
 export const EarthVector: React.FC<EarthVectorProps> = ({
   selectedSite: selectedSiteProp,
   origin = [0, 0, 0],
-  targetPosition = [40, 50, -30],
+  targetDirection = [0, 0, 0],
   terrainSize = TERRAIN.size,
   color = "#38bdf8",
   label = "TIERRA",
@@ -68,10 +65,10 @@ export const EarthVector: React.FC<EarthVectorProps> = ({
 
   const { start, end, dir, length } = useMemo(() => {
     const s = new THREE.Vector3(...dynamicOrigin);
-    const e = new THREE.Vector3(...targetPosition);
+    const e = s.clone().add(new THREE.Vector3(...targetDirection));
     const d = e.clone().sub(s);
     return { start: s, end: e, dir: d.clone().normalize(), length: d.length() };
-  }, [dynamicOrigin, targetPosition]);
+  }, [dynamicOrigin, targetDirection]);
 
   // Orientación de la punta (cono apunta en +Y por defecto)
   const tipQuaternion = useMemo(

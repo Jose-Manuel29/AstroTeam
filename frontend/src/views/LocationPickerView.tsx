@@ -5,7 +5,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import { MoonGlobe } from "../components/3d_canvas/MoonGlobe";
-import { CANDIDATE_LANDING_SITES } from "../data/landingSites";
 import { LandingSite } from "../types";
 import { FigmaDiamondShadow } from "../components/ui/FigmaDiamondShadow";
 import { FigmaLandingButton } from "../components/ui/FigmaLandingButton";
@@ -19,9 +18,11 @@ import {
 export type ExplorerPhase = "landing" | "transitioning" | "picker" | "detail";
 
 export interface LocationPickerViewProps {
+  sites: LandingSite[];
+  selectedSiteId: string;
   initialPhase?: ExplorerPhase;
   isDetailActive?: boolean;
-  onSelectSiteDetail?: (siteSlug: string) => void;
+  onSelectSiteDetail?: (siteId: string) => void;
   onDetailMoonArrived?: () => void;
   onBackToPicker?: () => void;
 }
@@ -499,6 +500,8 @@ const SceneDirector: React.FC<SceneDirectorProps> = ({
 };
 
 export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
+  sites,
+  selectedSiteId,
   initialPhase = "landing",
   isDetailActive = false,
   onSelectSiteDetail,
@@ -515,160 +518,62 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
     }
   }, [isDetailActive, phase]);
 
-  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(
-    CANDIDATE_LANDING_SITES[0]?.id || null
-  );
-
   const hourOfDay = 12.0;
-
-  // Estado de los 3 sliders de criterios (Card Superior Izquierda)
-  const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>({
-    illumination: 68,
-    slope: 42,
-    earthLink: 83,
-  });
-
-  const sliderItems: CriterionSliderItem[] = useMemo(
-    () => [
-      {
-        id: "illumination",
-        label: "Zona de aterrizaje viable ↑",
-        value: criteriaValues.illumination,
-        min: 0,
-        max: 100,
-        step: 1,
-        unit: "%",
-      },
-      {
-        id: "slope",
-        label: "Tolerancia de pendiente ↑",
-        value: criteriaValues.slope,
-        min: 0,
-        max: 100,
-        step: 1,
-        unit: "%",
-      },
-      {
-        id: "earthLink",
-        label: "Ventana de enlace DTE ↑",
-        value: criteriaValues.earthLink,
-        min: 0,
-        max: 100,
-        step: 1,
-        unit: "%",
-      },
-    ],
-    [criteriaValues]
-  );
-
-  const handleCriterionChange = (id: string, newValue: number) => {
-    setCriteriaValues((prev) => ({
-      ...prev,
-      [id]: newValue,
-    }));
-  };
-
-  // Filtrado de sitios candidatos en vivo según los sliders
-  const filteredSites = useMemo(() => {
-    const minIllum = Math.round(45 + (criteriaValues.illumination / 100) * 40);
-    const maxSlope = 6 + (criteriaValues.slope / 100) * 14;
-    const minDte = Math.round(50 + (criteriaValues.earthLink / 100) * 40);
-
-    return CANDIDATE_LANDING_SITES.map((site) => {
-      const isViable =
-        site.illuminationAvgPercent >= minIllum &&
-        site.slopeDegrees <= maxSlope &&
-        site.earthVisibilityPercent >= minDte;
-
-      return { ...site, isViable };
-    });
-  }, [criteriaValues]);
-
+  const filteredSites = sites;
   const selectedSite = useMemo(
     () =>
-      filteredSites.find((s) => s.id === selectedSiteId) ||
-      filteredSites[0] ||
+      filteredSites.find((candidate) => candidate.id === selectedSiteId) ??
+      filteredSites[0] ??
       null,
     [filteredSites, selectedSiteId]
   );
 
-  // Lista derecha de 7 filas con iconos a la izquierda (igual a la referencia visual)
-  const rightListItems: CriterionIconListItem[] = useMemo(() => {
-    const site0 = filteredSites[0];
-    const site1 = filteredSites[1];
-    const site2 = filteredSites[2];
-    const site3 = filteredSites[3];
+  const sliderItems: CriterionSliderItem[] = useMemo(
+    () => selectedSite
+      ? [
+          {
+            id: "illumination",
+            label: "Solar illumination (site catalog)",
+            value: selectedSite.illuminationAvgPercent,
+            readOnly: true,
+            unit: "%",
+          },
+          {
+            id: "earthLink",
+            label: "Earth visibility (site catalog)",
+            value: selectedSite.earthVisibilityPercent,
+            readOnly: true,
+            unit: "%",
+          },
+        ]
+      : [],
+    [selectedSite]
+  );
 
-    return [
-      {
-        id: site0?.id || "zone-1",
-        label: site0?.name || "Shackleton Ridge",
-        value: site0 ? `${site0.illuminationAvgPercent}%` : undefined,
+  // Lista derecha de 7 filas con iconos a la izquierda (igual a la referencia visual)
+  const rightListItems: CriterionIconListItem[] = useMemo(
+    () =>
+      filteredSites.map((site) => ({
+        id: site.id,
+        label: site.name,
+        value: `Sol ${site.illuminationAvgPercent}% · Tierra ${site.earthVisibilityPercent}%`,
         icon: "sun",
-        active: site0?.isViable !== false,
-        selected: selectedSiteId === site0?.id,
-      },
-      {
-        id: site1?.id || "zone-2",
-        label: site1?.name || "Faustini Rim A",
-        value: site1 ? `${site1.slopeDegrees}°` : undefined,
-        icon: "thermometer",
-        active: site1?.isViable !== false,
-        selected: selectedSiteId === site1?.id,
-      },
-      {
-        id: site2?.id || "zone-3",
-        label: site2?.name || "Amundsen Rim",
-        value: site2 ? `${site2.earthVisibilityPercent}%` : undefined,
-        icon: "radiation",
-        active: site2?.isViable !== false,
-        selected: selectedSiteId === site2?.id,
-      },
-      {
-        id: site3?.id || "zone-4",
-        label: site3?.name || "Cabeus B Peak",
-        value: site3 ? `${site3.illuminationAvgPercent}%` : undefined,
-        icon: "sun",
-        active: site3?.isViable !== false,
-        selected: selectedSiteId === site3?.id,
-      },
-      {
-        id: "telemetry-rad",
-        label: "Blindaje de radiación polar",
-        value: "0.42 mSv",
-        icon: "radiation",
-        active: true,
-      },
-      {
-        id: "telemetry-therm",
-        label: "Gradiente térmico regolito",
-        value: "-168 °C",
-        icon: "thermometer",
-        active: true,
-      },
-      {
-        id: "telemetry-dte",
-        label: "Enlace orbital continuo",
-        value: selectedSite ? `${selectedSite.earthVisibilityPercent}%` : "92%",
-        icon: "sun",
-        active: true,
-      },
-    ];
-  }, [filteredSites, selectedSiteId, selectedSite]);
+        selected: selectedSiteId === site.id,
+      })),
+    [filteredSites, selectedSiteId]
+  );
 
   const handleRightListClick = (id: string) => {
     const matchedSite = filteredSites.find((s) => s.id === id);
     if (matchedSite) {
-      setSelectedSiteId(matchedSite.id);
       setPhase("detail");
-      onSelectSiteDetail?.(matchedSite.slug);
+      onSelectSiteDetail?.(matchedSite.id);
     }
   };
 
   const handleSelectSiteOnGlobe = (site: LandingSite) => {
-    setSelectedSiteId(site.id);
     setPhase("detail");
-    onSelectSiteDetail?.(site.slug);
+    onSelectSiteDetail?.(site.id);
   };
 
   // Manejo de la transición al presionar "Aterrizar"
@@ -858,16 +763,15 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
         {/* Card Superior Izquierda: Criterios cumplidos (3 Sliders) */}
         <aside className="absolute left-[64px] top-[56px] z-20 pointer-events-none">
           <CriteriaSlidersCard
-            title="Criterios cumplidos"
+            title="Site catalog data"
             items={sliderItems}
-            onChange={handleCriterionChange}
           />
         </aside>
 
         {/* Card Superior Derecha: Lista de Zonas y Telemetría con Iconos a la izquierda */}
         <aside className="absolute right-[64px] top-[56px] z-20 pointer-events-none">
           <CriteriaIconListCard
-            title="Criterios cumplidos"
+            title="Lunar sites"
             headerAlign="right"
             iconPosition="left"
             items={rightListItems}
@@ -878,7 +782,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
                   type="button"
                   onClick={() => {
                     setPhase("detail");
-                    onSelectSiteDetail?.(selectedSite.slug);
+                    onSelectSiteDetail?.(selectedSite.id);
                   }}
                   className="w-full mt-1 py-2 px-3 rounded-[12px] bg-[#D9CEC5]/20 hover:bg-[#D9CEC5]/30 border border-white/20 font-sans font-medium text-[12px] text-[#FAFAFA] flex items-center justify-between transition-all cursor-pointer"
                 >

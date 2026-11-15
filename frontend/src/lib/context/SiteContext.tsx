@@ -10,25 +10,13 @@ export interface HorizonPoint {
 export interface PresetSite {
   id: string;
   name: string;
-  category: string;
   lat: number;
   lon: number;
-  elevation_m: number;
-  description: string;
-  default_horizon_elevation_deg: number;
-  horizon_profile: HorizonPoint[];
-  /** Probabilidad de hielo (0–1). Opcional: aún no presente en todos los JSON del backend. */
-  ice_probability?: number;
-}
-
-export interface PresetSitesFile {
-  metadata: {
-    generated_at: string;
-    count: number;
-    libration_snapshot?: Record<string, number>;
-    ephemeris_engine?: string;
-  };
-  sites: PresetSite[];
+  category?: string;
+  elevation_m?: number;
+  description?: string;
+  default_horizon_elevation_deg?: number;
+  horizon_profile?: HorizonPoint[];
 }
 
 interface SiteContextValue {
@@ -48,9 +36,13 @@ const DEFAULT_CONTEXT: SiteContextValue = {
 
 const SiteContext = createContext<SiteContextValue>(DEFAULT_CONTEXT);
 
-export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [selectedSite, setSelectedSite] = useState<PresetSite | null>(null);
-  const [zoneOffset, setZoneOffset] = useState<number>(0.02);
+export const SiteProvider: React.FC<{
+  children: React.ReactNode;
+  initialSite?: PresetSite | null;
+  initialZoneOffset?: number;
+}> = ({ children, initialSite = null, initialZoneOffset = 0.02 }) => {
+  const [selectedSite, setSelectedSite] = useState<PresetSite | null>(initialSite);
+  const [zoneOffset, setZoneOffset] = useState<number>(initialZoneOffset);
 
   const value = useMemo(
     () => ({ selectedSite, setSelectedSite, zoneOffset, setZoneOffset }),

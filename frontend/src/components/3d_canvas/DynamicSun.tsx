@@ -1,40 +1,44 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { celestialDirectionToScene } from "@/lib/geo/celestial";
 
 export interface DynamicSunProps {
   /** Azimut del Sol en grados (0–360). */
   sunAngle: number;
+  elevationDeg?: number;
+  siteLongitudeDeg?: number;
   /** Radio horizontal de la órbita de la luz. */
   radius?: number;
-  /** Altura de la luz: rasante (~6° de elevación con los valores por defecto). */
-  height?: number;
   intensity?: number;
   /** Semilado del frustum ortográfico de sombras (debe cubrir el terreno). */
   shadowExtent?: number;
+  visible?: boolean;
 }
 
 /**
  * Sol dinámico rasante: orbita el horizonte del Polo Sur a baja elevación
  * proyectando sombras duras sobre el relieve lunar.
- * x = r·cos(θ), z = r·sin(θ), y = altura rasante.
+ * La dirección local norte/este se transforma al sistema de coordenadas polar del terreno.
  */
 export const DynamicSun: React.FC<DynamicSunProps> = ({
   sunAngle,
+  elevationDeg = 5.7,
+  siteLongitudeDeg = 0,
   radius = 80,
-  height = 8,
   intensity = 2,
   shadowExtent = 75,
+  visible = true,
 }) => {
   const position = useMemo<[number, number, number]>(() => {
-    const t = (sunAngle * Math.PI) / 180;
-    return [radius * Math.cos(t), height, radius * Math.sin(t)];
-  }, [sunAngle, radius, height]);
+    return celestialDirectionToScene(sunAngle, elevationDeg, siteLongitudeDeg, radius);
+  }, [sunAngle, elevationDeg, siteLongitudeDeg, radius]);
 
   return (
     <directionalLight
       position={position}
       intensity={intensity}
+      visible={visible}
       castShadow
       shadow-mapSize={[2048, 2048]}
       shadow-camera-left={-shadowExtent}

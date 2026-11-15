@@ -1,37 +1,23 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { CANDIDATE_LANDING_SITES } from "../../data/landingSites";
+import { MAP_HALF_EXTENT_M, latLonToSouthPolarStereo } from "../../lib/geo/polarStereo";
+import type { LandingSite } from "../../types";
 
 export interface SouthPoleMinimapProps {
-  currentSiteSlug?: string;
-  onSelectSite?: (slug: string) => void;
+  sites: LandingSite[];
+  currentSiteId?: string;
+  onSelectSite?: (siteId: string) => void;
   size?: number;
   className?: string;
 }
 
 /**
- * Coordenadas de calibración (en un canvas base de 210x210 px)
- * para los sitios de aterrizaje candidatos en la proyección polar estereográfica.
- * 'shackleton-connecting-ridge' coincide exactamente con la especificación de diseño Figma (x: 78, y: 79).
- */
-const SITE_MAP_COORDINATES: Record<string, { x: number; y: number }> = {
-  "shackleton-connecting-ridge": { x: 78, y: 79 },
-  "faustini-rim-a": { x: 132, y: 64 },
-  "amundsen-rim": { x: 154, y: 92 },
-  "peak-near-cabeus-b": { x: 72, y: 146 },
-};
-
-/**
- * Componente SouthPoleMinimap (Radar Polar de Orientación)
- * Reconstruye la superficie del polo sur lunar mediante una matriz 2x2:
- *  [ 1.png | 2.png ]
- *  [ 3.png | 4.png ]
- * Renderiza dos líneas discontinuas perpendiculares y un recuadro de zona (palette-cream / ochre)
- * que enmarca la ubicación activa analizada en la vista 3D.
+ * Posiciona los sitios con la misma proyección polar estereográfica que el DEM.
  */
 export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
-  currentSiteSlug = "shackleton-connecting-ridge",
+  sites,
+  currentSiteId,
   onSelectSite,
   size,
   className = "w-[clamp(115px,19vh,210px)] h-[clamp(115px,19vh,210px)] aspect-square",
@@ -39,17 +25,30 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
   // Dimensiones relativas (%) respecto al sistema base de 210x210 de Figma
   const rectWidthPct = (38 / 210) * 100;
   const rectHeightPct = (19 / 210) * 100;
+  const mapSpan = 2 * MAP_HALF_EXTENT_M;
 
-  // Coordenadas del sitio activo en porcentaje (%)
-  const activeCoord = useMemo(() => {
-    return (
-      SITE_MAP_COORDINATES[currentSiteSlug] ||
-      SITE_MAP_COORDINATES["shackleton-connecting-ridge"]
-    );
-  }, [currentSiteSlug]);
+  const siteCoordinates = useMemo(
+    () =>
+      sites.flatMap((site) => {
+        const projected = latLonToSouthPolarStereo(site.coordinates.lat, site.coordinates.lng);
+        if (
+          Math.abs(projected.x) > MAP_HALF_EXTENT_M ||
+          Math.abs(projected.y) > MAP_HALF_EXTENT_M
+        ) {
+          return [];
+        }
+        return [{
+          site,
+          x: ((projected.x + MAP_HALF_EXTENT_M) / mapSpan) * 100,
+          y: ((MAP_HALF_EXTENT_M - projected.y) / mapSpan) * 100,
+        }];
+      }),
+    [mapSpan, sites]
+  );
+  const activeCoord = siteCoordinates.find(({ site }) => site.id === currentSiteId);
 
-  const targetXPct = (activeCoord.x / 210) * 100;
-  const targetYPct = (activeCoord.y / 210) * 100;
+  const targetXPct = activeCoord?.x ?? 50;
+  const targetYPct = activeCoord?.y ?? 50;
 
   const rectLeftPct = targetXPct - rectWidthPct / 2;
   const rectTopPct = targetYPct - rectHeightPct / 2;
@@ -124,26 +123,21 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
       />
 
       {/* 6. PUNTOS DE SITIOS CANDIDATOS (Marcadores polares interactivos en %) */}
-      {CANDIDATE_LANDING_SITES.map((site) => {
-        const coord = SITE_MAP_COORDINATES[site.slug];
-        if (!coord) return null;
-
-        const posXPct = (coord.x / 210) * 100;
-        const posYPct = (coord.y / 210) * 100;
-        const isActive = site.slug === currentSiteSlug;
+      {siteCoordinates.map(({ site, x, y }) => {
+        const isActive = site.id === currentSiteId;
 
         return (
           <button
             key={site.id}
             type="button"
-            onClick={() => onSelectSite?.(site.slug)}
+            onClick={() => onSelectSite?.(site.id)}
             title={`${site.name} (${Math.abs(site.coordinates.lat)}°S, ${site.coordinates.lng}°E)`}
             className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform duration-300 z-30 group cursor-pointer focus:outline-none ${
               isActive ? "scale-125" : "hover:scale-150"
             }`}
             style={{
-              left: `${posXPct}%`,
-              top: `${posYPct}%`,
+              left: `${x}%`,
+              top: `${y}%`,
             }}
           >
             <span

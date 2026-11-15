@@ -63,8 +63,9 @@ export interface TerrainConfig {
 export interface SunConfig {
   /** Azimut solar en grados (0 - 360) */
   angle?: number;
+  elevationDeg?: number;
+  visible?: boolean;
   radius?: number;
-  height?: number;
   intensity?: number;
   ambientIntensity?: number;
   shadowExtent?: number;
@@ -74,8 +75,7 @@ export interface SunConfig {
 export interface EarthConfig {
   visible?: boolean;
   origin?: [number, number, number];
-  /** PROVISIONAL hasta recibir la efeméride real del backend. */
-  targetPosition?: [number, number, number];
+  direction?: [number, number, number];
   color?: string;
   label?: string;
 }
@@ -165,10 +165,12 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
         <ambientLight intensity={sun?.ambientIntensity ?? 0.1} />
         <DynamicSun
           sunAngle={sun?.angle ?? 0}
+          elevationDeg={sun?.elevationDeg ?? 5.7}
+          siteLongitudeDeg={activeSite?.lon ?? 0}
           radius={sun?.radius ?? 80}
-          height={sun?.height ?? 8}
           intensity={sun?.intensity ?? 2}
           shadowExtent={sun?.shadowExtent ?? 75}
+          visible={sun?.visible ?? true}
         />
 
         {showStars && <Stars radius={200} depth={50} count={3000} factor={3} fade />}
@@ -195,7 +197,7 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
             selectedSite={activeSite}
             visible={earth?.visible ?? true}
             origin={earth?.origin ?? [0, 0, 0]}
-            targetPosition={earth?.targetPosition ?? [40, 50, -30]}
+            targetDirection={earth?.direction ?? [0, 0, 0]}
             terrainSize={terrainSize}
             color={earth?.color ?? "#38bdf8"}
             label={earth?.label ?? "TIERRA"}

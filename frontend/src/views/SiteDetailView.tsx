@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import presetSitesData from "../../public/data/preset_sites.json";
 import { LunarMapViewer } from "../components/3d_canvas/LunarMapViewer";
 import {
   SiteProvider,
   type PresetSite,
-  type PresetSitesFile,
 } from "../lib/context/SiteContext";
+import { fetchSiteTimeline, type SiteTimeline } from "../lib/api";
+import { celestialDirectionToScene } from "../lib/geo/celestial";
+import { toPresetSite } from "../lib/siteAdapters";
+import type { LandingSite } from "../types";
 import {
   HudCard,
   CriteriaSlidersCard,
@@ -21,15 +23,13 @@ import {
   TopTemporalController,
   SouthPoleMinimap,
 } from "../components/hud";
-import { CANDIDATE_LANDING_SITES } from "../data/landingSites";
-
-const PRESET_SITES: PresetSite[] = (presetSitesData as PresetSitesFile).sites;
 
 export interface SiteDetailViewProps {
-  siteSlug?: string;
+  siteId: string;
+  sites: LandingSite[];
   moonArrived?: boolean;
   onBackToPicker?: () => void;
-  onSelectSite?: (slug: string) => void;
+  onSelectSite?: (siteId: string) => void;
 }
 
 /**
@@ -38,204 +38,259 @@ export interface SiteDetailViewProps {
  * Comparte el mismo Canvas 3D persistente de la Luna desde LocationPickerView para evitar parpadeos.
  */
 export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
-  siteSlug = "shackleton-connecting-ridge",
+  siteId,
+  sites,
   moonArrived = false,
   onBackToPicker,
   onSelectSite,
 }) => {
   const site = useMemo(
-    () =>
-      CANDIDATE_LANDING_SITES.find((s) => s.slug === siteSlug) ||
-      CANDIDATE_LANDING_SITES[0],
-    [siteSlug]
+    () => sites.find((candidate) => candidate.id === siteId) ?? null,
+    [sites, siteId]
   );
 
-  // Estado reactivo de los sliders inicializado con los datos reales del sitio seleccionado
-  const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>({
-    illumination: site.illuminationAvgPercent,
-    slope: site.slopeDegrees,
-    earthLink: site.earthVisibilityPercent,
-  });
+  const [timeline, setTimeline] = useState<SiteTimeline | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
+  const [timelineRetry, setTimelineRetry] = useState(0);
+  const [selectedPointIndex, setSelectedPointIndex] = useState(0);
 
   useEffect(() => {
-    setCriteriaValues({
-      illumination: site.illuminationAvgPercent,
-      slope: site.slopeDegrees,
-      earthLink: site.earthVisibilityPercent,
-    });
-  }, [site]);
+    if (!site) {
+      setTimeline(null);
+      return;
+    }
+
+    let active = true;
+    setTimeline(null);
+    setTimelineLoading(true);
+    setTimelineError(null);
+    setSelectedPointIndex(0);
+
+    fetchSiteTimeline(site.id)
+      .then((result) => {
+        if (!active) return;
+        if (result.points.length === 0) {
+          throw new Error(`El timeline de ${result.name} no contiene muestras.`);
+        }
+        setTimeline(result);
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setTimelineError(error instanceof Error ? error.message : String(error));
+        }
+      })
+      .finally(() => {
+        if (active) setTimelineLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [site?.id, timelineRetry]);
+
+  const timelinePoints = timeline?.points ?? [];
+  const currentIndex = timelinePoints.length
+    ? Math.max(0, Math.min(timelinePoints.length - 1, selectedPointIndex))
+    : 0;
+  const selectedPoint = timelinePoints[currentIndex] ?? null;
+  const firstPoint = timelinePoints[0];
+  const lastPoint = timelinePoints[timelinePoints.length - 1];
 
   const sliderItems: CriterionSliderItem[] = useMemo(
-    () => [
-      {
-        id: "illumination",
-        label: "Solar illumination threshold ↑",
-        value: criteriaValues.illumination,
-        min: 0,
-        max: 100,
-        step: 1,
-        unit: "%",
-      },
-      {
-        id: "slope",
-        label: "Max terrain slope tolerance ↓",
-        value: criteriaValues.slope,
-        min: 0,
-        max: 25,
-        step: 0.5,
-        formatValue: (v) => `${v.toFixed(1)}°`,
-      },
-      {
-        id: "earthLink",
-        label: "Direct-to-Earth (DTE) link ↑",
-        value: criteriaValues.earthLink,
-        min: 0,
-        max: 100,
-        step: 1,
-        unit: "%",
-      },
-    ],
-    [criteriaValues]
+    () =>
+      site
+        ? [
+            {
+              id: "illumination",
+              label: "Solar illumination (site catalog)",
+              value: site.illuminationAvgPercent,
+              readOnly: true,
+              unit: "%",
+            },
+            {
+              id: "earthLink",
+              label: "Earth visibility (site catalog)",
+              value: site.earthVisibilityPercent,
+              readOnly: true,
+              unit: "%",
+            },
+          ]
+        : [],
+    [site]
   );
-
-  const handleCriterionChange = (id: string, newValue: number) => {
-    setCriteriaValues((prev) => ({
-      ...prev,
-      [id]: newValue,
-    }));
-  };
-
-  // KPI de viabilidad global calculado en vivo a partir de los parámetros
-  const fulfilledKpiPercent = useMemo(() => {
-    const slopeScore = Math.max(0, Math.min(100, ((25 - criteriaValues.slope) / 25) * 100));
-    const score =
-      criteriaValues.illumination * 0.45 +
-      slopeScore * 0.25 +
-      criteriaValues.earthLink * 0.3;
-    return Math.max(0, Math.min(100, Math.round(score)));
-  }, [criteriaValues]);
 
   // Estado de capas de telemetría ambiental (Card Inferior Izquierda)
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>({
-    "solar-flux": true,
-    "thermal-gradient": true,
-    "radiation-shield": true,
-    "psr-ice": true,
+    sun: true,
+    earth: true,
     "dte-link": true,
+    "earth-distance": true,
+    "earth-rtt": true,
+    "earth-phase": true,
   });
 
   const handleToggleIconCriterion = (id: string) => {
     setActiveLayers((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Controlador Temporal Superior
-  const [hourOfDay, setHourOfDay] = useState<number>(12.0);
-  const [missionDateIso, setMissionDateIso] = useState<string>("2026-11-18");
+  const dateIso = selectedPoint?.timestamp_utc.slice(0, 10) ?? "";
+  const minDate = firstPoint?.timestamp_utc.slice(0, 10) ?? "";
+  const maxDate = lastPoint?.timestamp_utc.slice(0, 10) ?? "";
+  const selectedHour = selectedPoint
+    ? new Date(selectedPoint.timestamp_utc).getUTCHours() +
+      new Date(selectedPoint.timestamp_utc).getUTCMinutes() / 60
+    : 0;
 
-  // Datos inyectados en la lista de telemetría con iconos
+  const selectNearestPointForDate = useCallback(
+    (date: string) => {
+      if (!timelinePoints.length) return;
+      const target = Date.parse(`${date}T${String(Math.floor(selectedHour)).padStart(2, "0")}:00:00Z`);
+      let nearestIndex = 0;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      timelinePoints.forEach((point, index) => {
+        const distance = Math.abs(Date.parse(point.timestamp_utc) - target);
+        if (distance < nearestDistance) {
+          nearestIndex = index;
+          nearestDistance = distance;
+        }
+      });
+      setSelectedPointIndex(nearestIndex);
+    },
+    [selectedHour, timelinePoints]
+  );
+
   const iconCriteriaItems: CriterionIconListItem[] = useMemo(() => {
-    const solarFlux = Math.round(1361 * (criteriaValues.illumination / 100));
-    const tempCelsius = Math.round(-210 + (criteriaValues.illumination / 100) * 95);
-
     return [
       {
-        id: "solar-flux",
-        label: "Solar Flux Incidence",
-        value: `${solarFlux} W/m²`,
+        id: "sun",
+        label: "Solar visibility",
+        value: selectedPoint
+          ? selectedPoint.is_sun_full_disk_visible
+            ? "Full disk"
+            : selectedPoint.is_sun_any_part_visible
+            ? "Partial"
+            : "Blocked"
+          : "N/D",
         icon: "sun",
-        active: activeLayers["solar-flux"],
+        active: activeLayers.sun,
       },
       {
-        id: "thermal-gradient",
-        label: "Surface Thermal Mean",
-        value: `${tempCelsius} °C`,
-        icon: "thermometer",
-        active: activeLayers["thermal-gradient"],
-      },
-      {
-        id: "radiation-shield",
-        label: "Radiation Exposure",
-        value: "0.42 mSv/d",
-        icon: "radiation",
-        active: activeLayers["radiation-shield"],
-      },
-      {
-        id: "psr-ice",
-        label: "PSR Volatile Basin",
-        value: `${site.permanentShadowAreaKm2} km²`,
-        icon: "ice",
-        active: activeLayers["psr-ice"],
+        id: "earth",
+        label: "Earth visibility",
+        value: selectedPoint
+          ? selectedPoint.is_earth_full_disk_visible
+            ? "Full disk"
+            : selectedPoint.is_earth_any_part_visible
+            ? "Partial"
+            : "Blocked"
+          : "N/D",
+        icon: "compass",
+        active: activeLayers.earth,
       },
       {
         id: "dte-link",
-        label: "DTE Telemetry Lock",
-        value: `${Math.round(criteriaValues.earthLink)}%`,
+        label: "Direct-to-Earth link",
+        value: selectedPoint ? (selectedPoint.is_earth_visible ? "Available" : "Blocked") : "N/D",
         icon: "broadcast",
         active: activeLayers["dte-link"],
       },
+      {
+        id: "earth-distance",
+        label: "Earth distance",
+        value: selectedPoint ? `${Math.round(selectedPoint.earth_distance_km).toLocaleString()} km` : "N/D",
+        icon: "compass",
+        active: activeLayers["earth-distance"],
+      },
+      {
+        id: "earth-rtt",
+        label: "Earth round-trip latency",
+        value: selectedPoint ? `${selectedPoint.earth_latency_rtt_sec.toFixed(3)} s` : "N/D",
+        icon: "broadcast",
+        active: activeLayers["earth-rtt"],
+      },
+      {
+        id: "earth-phase",
+        label: "Earth phase angle",
+        value: selectedPoint?.earth_phase_angle_deg == null
+          ? "N/D"
+          : `${selectedPoint.earth_phase_angle_deg.toFixed(2)}°`,
+        icon: "compass",
+        active: activeLayers["earth-phase"],
+      },
     ];
-  }, [criteriaValues, site, activeLayers]);
+  }, [selectedPoint, activeLayers]);
 
-  // Filas de la tarjeta derecha de 2 columnas (resumen vs expandido)
   const rightGridRows: CriteriaGridRow[] = useMemo(
-    () => [
-      {
-        id: "coords",
-        leftSubtext: "Latitude",
-        leftText: `${Math.abs(site.coordinates.lat)}° S`,
-        rightSubtext: "Longitude",
-        rightText: `${site.coordinates.lng}° E`,
-      },
-      {
-        id: "topo",
-        leftSubtext: "Elevation",
-        leftText: `${site.elevationMeters} m`,
-        rightSubtext: "Mean Slope",
-        rightText: `${criteriaValues.slope.toFixed(1)}°`,
-      },
-      {
-        id: "links",
-        leftSubtext: "Solar Avg",
-        leftText: `${Math.round(criteriaValues.illumination)}%`,
-        rightSubtext: "Earth LoS",
-        rightText: `${Math.round(criteriaValues.earthLink)}%`,
-      },
-    ],
-    [site, criteriaValues]
+    () => site
+      ? [
+          {
+            id: "coords",
+            leftSubtext: "Latitude",
+            leftText: `${site.coordinates.lat.toFixed(3)}°`,
+            rightSubtext: "Longitude",
+            rightText: `${site.coordinates.lng.toFixed(3)}°`,
+          },
+          {
+            id: "topo",
+            leftSubtext: "Elevation",
+            leftText: `${site.elevationMeters.toFixed(0)} m`,
+            rightSubtext: "Mission",
+            rightText: site.mission || "N/D",
+          },
+          {
+            id: "catalog",
+            leftSubtext: "Solar illumination",
+            leftText: `${site.illuminationAvgPercent.toFixed(1)}%`,
+            rightSubtext: "Earth visibility",
+            rightText: `${site.earthVisibilityPercent.toFixed(1)}%`,
+          },
+        ]
+      : [],
+    [site]
   );
 
-  const rightGridExpandedRows: CriteriaGridRow[] = useMemo(() => {
-    const sunAzimuth = Math.round((hourOfDay / 24) * 360);
-    const sunElev = (1.5 * Math.sin((hourOfDay / 24) * Math.PI * 2)).toFixed(2);
-    return [
-      {
-        id: "ephem-1",
-        leftSubtext: "Sun Azimuth",
-        leftText: `${sunAzimuth}°`,
-        rightSubtext: "Sun Elevation",
-        rightText: `${sunElev}°`,
-      },
-      {
-        id: "ephem-2",
-        leftSubtext: "PSR Cold Trap",
-        leftText: `${site.permanentShadowAreaKm2} km²`,
-        rightSubtext: "Regolith Albedo",
-        rightText: "0.12 (Highland)",
-      },
-      {
-        id: "ephem-3",
-        leftSubtext: "Mission Date",
-        leftText: missionDateIso,
-        rightSubtext: "UTC Epoch",
-        rightText: `${String(Math.floor(hourOfDay)).padStart(2, "0")}:00 UTC`,
-      },
-    ];
-  }, [hourOfDay, site, missionDateIso]);
+  const rightGridExpandedRows: CriteriaGridRow[] = useMemo(
+    () => selectedPoint
+      ? [
+          {
+            id: "sun",
+            leftSubtext: "Sun azimuth",
+            leftText: `${selectedPoint.sun_azimuth_deg.toFixed(2)}°`,
+            rightSubtext: "Sun elevation",
+            rightText: `${selectedPoint.sun_elevation_deg.toFixed(2)}°`,
+          },
+          {
+            id: "earth",
+            leftSubtext: "Earth azimuth",
+            leftText: `${selectedPoint.earth_azimuth_deg.toFixed(2)}°`,
+            rightSubtext: "Earth elevation",
+            rightText: `${selectedPoint.earth_elevation_deg.toFixed(2)}°`,
+          },
+          {
+            id: "visibility",
+            leftSubtext: "Sun above terrain",
+            leftText: selectedPoint.is_sun_visible ? "Yes" : "No",
+            rightSubtext: "Direct Earth link",
+            rightText: selectedPoint.is_earth_visible ? "Available" : "Blocked",
+          },
+          {
+            id: "epoch",
+            leftSubtext: "Timeline sample",
+            leftText: selectedPoint.timestamp_utc.slice(0, 10),
+            rightSubtext: "UTC",
+            rightText: `${selectedPoint.timestamp_utc.slice(11, 16)} UTC`,
+          },
+        ]
+      : [],
+    [selectedPoint]
+  );
 
-  // Días de luz continua estimados según el porcentaje de iluminación
-  const continuousSunlightDays = useMemo(() => {
-    return Math.max(1, Math.round((criteriaValues.illumination / 100) * 18));
-  }, [criteriaValues.illumination]);
+  const mapSites = useMemo(() => sites.map(toPresetSite), [sites]);
+  const selectedMapSite = useMemo(
+    () => (site ? mapSites.find((candidate) => candidate.id === site.id) ?? null : null),
+    [mapSites, site]
+  );
 
   // Estados de la coreografía secuencial de entrada:
   // 1. La Luna persistente se encoge y traslada lentamente a la esquina inferior derecha (siempre dentro de la pantalla).
@@ -244,8 +299,6 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   const [mapLoaded, setMapLoaded] = useState<boolean>(false);
   const [allowMapEntrance, setAllowMapEntrance] = useState<boolean>(false);
 
-  // Estado del sitio enfocado dentro del nuevo visor 3D (diorama + capas holográficas + vuelo de cámara)
-  const [selectedMapSite, setSelectedMapSite] = useState<PresetSite | null>(null);
   const [flightId, setFlightId] = useState<number>(0);
 
   const handleMapLoaded = useCallback(() => {
@@ -253,14 +306,13 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   }, []);
 
   const handleSelectMapSite = useCallback((clickedSite: PresetSite) => {
-    setSelectedMapSite((prev) => (prev?.id === clickedSite.id ? null : clickedSite));
+    onSelectSite?.(clickedSite.id);
     setFlightId((n) => n + 1);
-  }, []);
+  }, [onSelectSite]);
 
   useEffect(() => {
     setAllowMapEntrance(false);
-    setSelectedMapSite(null);
-  }, [siteSlug]);
+  }, [siteId]);
 
   useEffect(() => {
     if (!moonArrived) {
@@ -282,11 +334,43 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
 
   const showMap = allowMapEntrance && mapLoaded;
 
-  // Azimut solar controlado por el slider horario superior (TopTemporalController)
-  const sunAzimuthDeg = useMemo(() => (hourOfDay / 24) * 360, [hourOfDay]);
+  const sunVisible = selectedPoint?.is_sun_any_part_visible ?? false;
+  const earthDirection: [number, number, number] = selectedPoint && site
+    ? celestialDirectionToScene(
+        selectedPoint.earth_azimuth_deg,
+        selectedPoint.earth_elevation_deg,
+        site.coordinates.lng,
+        60
+      )
+    : [0, 0, 0];
+
+  if (!site) {
+    return (
+      <div role="alert" className="absolute inset-0 flex items-center justify-center bg-[#0D0D0D] text-slate-100">
+        El sitio solicitado ya no está en el catálogo de la API.
+      </div>
+    );
+  }
 
   return (
     <div className="absolute inset-0 bg-transparent overflow-hidden select-none pointer-events-none">
+      {timelineLoading && (
+        <div role="status" className="pointer-events-none absolute left-1/2 top-3 z-50 -translate-x-1/2 rounded-full border border-white/15 bg-slate-950/85 px-4 py-2 text-xs text-[#D9CEC5]">
+          Cargando timeline de {site.name}…
+        </div>
+      )}
+      {timelineError && (
+        <div className="pointer-events-auto absolute left-1/2 top-3 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-rose-300/30 bg-slate-950/95 px-4 py-3 text-xs text-slate-100">
+          <span role="alert">No se pudo cargar el timeline: {timelineError}</span>
+          <button
+            type="button"
+            onClick={() => setTimelineRetry((retry) => retry + 1)}
+            className="rounded border border-white/25 px-2 py-1 hover:bg-white/10"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
       {/* Botón de retorno al selector global (entra junto con la UI desde arriba) */}
       {onBackToPicker && (
         <button
@@ -318,12 +402,14 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         {moonArrived && (
           <SiteProvider initialSite={selectedMapSite} initialZoneOffset={0.02}>
             <LunarMapViewer
-              sites={PRESET_SITES}
+              sites={mapSites}
               selectedSite={selectedMapSite}
               onSelectSite={handleSelectMapSite}
               flightId={flightId}
               sun={{
-                angle: sunAzimuthDeg,
+                angle: selectedPoint?.sun_azimuth_deg ?? 0,
+                elevationDeg: selectedPoint?.sun_elevation_deg ?? 0,
+                visible: sunVisible,
                 intensity: 2.2,
                 ambientIntensity: 0.22,
               }}
@@ -347,10 +433,10 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
               }}
               earth={{
                 visible: activeLayers["dte-link"],
-                targetPosition: [40, 50, -30],
+                direction: earthDirection,
               }}
               grid={{
-                visible: activeLayers["solar-flux"],
+                visible: activeLayers.sun,
                 height: 25,
                 opacity: 0.12,
               }}
@@ -377,15 +463,25 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           transition: "transform 0.75s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease-out",
         }}
       >
-        <TopTemporalController
-          hour={hourOfDay}
-          onChangeHour={setHourOfDay}
-          dateIso={missionDateIso}
-          onChangeDate={setMissionDateIso}
-          telemetryBadge={`Az ${Math.round((hourOfDay / 24) * 360)}° · El ${(
-            1.5 * Math.sin((hourOfDay / 24) * Math.PI * 2)
-          ).toFixed(1)}°`}
-        />
+        {selectedPoint && (
+          <TopTemporalController
+            value={currentIndex}
+            min={0}
+            max={timelinePoints.length - 1}
+            onChangeValue={(index) => setSelectedPointIndex(Math.round(index))}
+            formatValue={(index) => {
+              const point = timelinePoints[Math.round(index)];
+              return point
+                ? `${point.timestamp_utc.slice(0, 10)} ${point.timestamp_utc.slice(11, 16)} UTC`
+                : "";
+            }}
+            dateIso={dateIso}
+            onChangeDate={selectNearestPointForDate}
+            minDate={minDate}
+            maxDate={maxDate}
+            telemetryBadge={`Sol ${selectedPoint.sun_azimuth_deg.toFixed(0)}° / ${selectedPoint.sun_elevation_deg.toFixed(1)}°`}
+          />
+        )}
       </div>
 
       {/* =========================================================================
@@ -401,23 +497,30 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         }}
       >
         <CriteriaSlidersCard
-          title="Fulfilled criteria"
+          title="Site catalog data"
           items={sliderItems}
-          onChange={handleCriterionChange}
           className="w-full shrink"
         />
 
         <CriteriaKpiCard
-          title="Fulfilled criteria"
-          value={fulfilledKpiPercent}
-          unit="%"
-          badgeText={fulfilledKpiPercent >= 75 ? "OPTIMAL" : "MARGINAL"}
-          subtitle="Viable landing zone ↑"
+          title="Solar disk visibility"
+          value={
+            !selectedPoint
+              ? "N/D"
+              : selectedPoint.is_sun_full_disk_visible
+              ? "FULL"
+              : selectedPoint.is_sun_any_part_visible
+              ? "PARTIAL"
+              : "SHADOW"
+          }
+          unit=""
+          badgeText={selectedPoint?.is_sun_visible ? "CENTER VISIBLE" : "CENTER HIDDEN"}
+          subtitle="Estado calculado para la muestra UTC seleccionada"
           className="w-full shrink"
         />
 
         <CriteriaIconListCard
-          title="Environmental telemetry"
+          title="Timeline telemetry"
           items={iconCriteriaItems}
           onToggleItem={handleToggleIconCriterion}
           className="w-full shrink"
@@ -440,7 +543,8 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           {/* Radar polar de orientación: Matriz 2x2, líneas discontinuas y recuadro en % */}
           <div className="pointer-events-auto shrink-0">
             <SouthPoleMinimap
-              currentSiteSlug={site.slug}
+              sites={sites}
+              currentSiteId={site.id}
               onSelectSite={onSelectSite}
             />
           </div>
@@ -454,9 +558,10 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           />
 
           <CriteriaDaysKpiCard
-            title="Solar window"
-            days={continuousSunlightDays}
-            unitLabel="days"
+            title="Continuous solar window"
+            days="N/D"
+            unitLabel=""
+            subtitle="Este indicador no está disponible en los endpoints actuales"
             className="w-full shrink"
           />
         </div>

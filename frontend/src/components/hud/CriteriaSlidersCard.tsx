@@ -11,6 +11,7 @@ export interface CriterionSliderItem {
   unit?: string;
   /** Formateador opcional para mostrar el valor inyectado */
   formatValue?: (val: number) => string;
+  readOnly?: boolean;
 }
 
 export interface CriteriaSlidersCardProps {
@@ -18,7 +19,7 @@ export interface CriteriaSlidersCardProps {
   subtitle?: string;
   headerAction?: React.ReactNode;
   items: CriterionSliderItem[];
-  onChange: (id: string, newValue: number) => void;
+  onChange?: (id: string, newValue: number) => void;
   className?: string;
 }
 
@@ -76,7 +77,7 @@ export const CriteriaSlidersCard: React.FC<CriteriaSlidersCardProps> = ({
               </div>
 
               {/* Track interactivo fluido al 100% del ancho y alto relativo */}
-              <div className="relative flex items-center w-full h-[clamp(13px,2vh,20px)] isolate group">
+              <div className={`relative flex items-center w-full h-[clamp(13px,2vh,20px)] isolate ${item.readOnly ? "" : "group"}`}>
                 {/* Riel base */}
                 <div
                   aria-hidden="true"
@@ -92,32 +93,34 @@ export const CriteriaSlidersCard: React.FC<CriteriaSlidersCardProps> = ({
                 {/* Progreso activo en porcentaje */}
                 <div
                   aria-hidden="true"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 h-[clamp(2px,0.32vh,3px)] bg-[#FFFFFF] rounded-full z-10 transition-[width] duration-75 ease-out"
+                  className={`absolute left-0 top-1/2 -translate-y-1/2 h-[clamp(2px,0.32vh,3px)] bg-[#FFFFFF] rounded-full z-10 ${item.readOnly ? "" : "transition-[width] duration-75 ease-out"}`}
                   style={{ width: `${percent}%` }}
                 />
 
                 {/* Thumb circular interactivo */}
                 <div
                   aria-hidden="true"
-                  className="
+                  className={`
                     absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[clamp(8px,1.15vh,11px)] h-[clamp(8px,1.15vh,11px)]
                     rounded-full bg-[#FFFFFF] shadow-[0_0_8px_rgba(255,255,255,0.65)]
-                    group-hover:scale-125 transition-transform duration-150 z-10 pointer-events-none
-                  "
+                    ${item.readOnly ? "" : "group-hover:scale-125 transition-transform duration-150"} z-10 pointer-events-none
+                  `}
                   style={{ left: `${percent}%` }}
                 />
 
                 {/* Input nativo accesible */}
-                <input
-                  type="range"
-                  min={min}
-                  max={max}
-                  step={step}
-                  value={item.value}
-                  aria-label={item.label}
-                  onChange={(e) => onChange(item.id, Number(e.target.value))}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 m-0"
-                />
+                {!item.readOnly && (
+                  <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={item.value}
+                    aria-label={item.label}
+                    onChange={(e) => onChange?.(item.id, Number(e.target.value))}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 m-0"
+                  />
+                )}
               </div>
             </div>
           );

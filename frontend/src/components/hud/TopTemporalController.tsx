@@ -164,6 +164,8 @@ export interface MissionDatePickerProps {
   /** Fecha en formato ISO YYYY-MM-DD */
   dateIso: string;
   onChangeDate: (newDateIso: string) => void;
+  minDate?: string;
+  maxDate?: string;
   /** Texto opcional secundario (ej. hora UTC o fase de misión) */
   badgeText?: string;
   className?: string;
@@ -172,6 +174,8 @@ export interface MissionDatePickerProps {
 export const MissionDatePicker: React.FC<MissionDatePickerProps> = ({
   dateIso,
   onChangeDate,
+  minDate,
+  maxDate,
   badgeText,
   className = "",
 }) => {
@@ -185,7 +189,14 @@ export const MissionDatePicker: React.FC<MissionDatePickerProps> = ({
     const ny = dt.getUTCFullYear();
     const nm = String(dt.getUTCMonth() + 1).padStart(2, "0");
     const nd = String(dt.getUTCDate()).padStart(2, "0");
-    onChangeDate(`${ny}-${nm}-${nd}`);
+    const nextDate = `${ny}-${nm}-${nd}`;
+    onChangeDate(
+      minDate && nextDate < minDate
+        ? minDate
+        : maxDate && nextDate > maxDate
+        ? maxDate
+        : nextDate
+    );
   };
 
   const openNativePicker = () => {
@@ -253,6 +264,8 @@ export const MissionDatePicker: React.FC<MissionDatePickerProps> = ({
         ref={dateInputRef}
         type="date"
         value={dateIso}
+        min={minDate}
+        max={maxDate}
         onChange={(e) => {
           if (e.target.value) onChangeDate(e.target.value);
         }}
@@ -267,22 +280,31 @@ export const MissionDatePicker: React.FC<MissionDatePickerProps> = ({
 // 3. ORQUESTADOR: TopTemporalController (Combina Slider Horario + Date Picker)
 // ============================================================================
 export interface TopTemporalControllerProps {
-  /** Hora del día en formato decimal (0 a 24) */
-  hour: number;
-  onChangeHour: (newHour: number) => void;
+  value: number;
+  min: number;
+  max: number;
+  onChangeValue: (newValue: number) => void;
+  formatValue: (value: number) => string;
   /** Fecha ISO seleccionada (ej. "2026-11-18") */
   dateIso: string;
   onChangeDate: (newDateIso: string) => void;
+  minDate: string;
+  maxDate: string;
   /** Telemetría opcional para inyectar en el tooltip del slider (ej. "Az 180° · El +1.2°") */
   telemetryBadge?: string;
   className?: string;
 }
 
 export const TopTemporalController: React.FC<TopTemporalControllerProps> = ({
-  hour,
-  onChangeHour,
+  value,
+  min,
+  max,
+  onChangeValue,
+  formatValue,
   dateIso,
   onChangeDate,
+  minDate,
+  maxDate,
   telemetryBadge,
   className = "absolute left-1/2 -translate-x-1/2 top-[clamp(2rem,4.5vh,2.75rem)] z-20",
 }) => {
@@ -291,12 +313,21 @@ export const TopTemporalController: React.FC<TopTemporalControllerProps> = ({
       className={`flex flex-col items-center gap-[clamp(0.4rem,1.15vh,0.75rem)] pointer-events-none ${className}`}
     >
       <TemporalRulerSlider
-        value={hour}
-        onChange={onChangeHour}
+        value={value}
+        min={min}
+        max={max}
+        step={1}
+        onChange={onChangeValue}
+        formatValue={formatValue}
         telemetryBadge={telemetryBadge}
       />
 
-      <MissionDatePicker dateIso={dateIso} onChangeDate={onChangeDate} />
+      <MissionDatePicker
+        dateIso={dateIso}
+        onChangeDate={onChangeDate}
+        minDate={minDate}
+        maxDate={maxDate}
+      />
     </div>
   );
 };
