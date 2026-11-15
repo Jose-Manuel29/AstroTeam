@@ -19,8 +19,6 @@ import {
   CriteriaSlidersCard,
   CriterionSliderItem,
   CriteriaKpiCard,
-  CriteriaIconListCard,
-  CriterionIconListItem,
   CriteriaGridCard,
   CriteriaGridRow,
   CriteriaDaysKpiCard,
@@ -352,45 +350,10 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
       ? "#fbbf24" // amber-400
       : "#fb7185"; // rose-400
 
-  const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>({
+  const [activeLayers] = useState<Record<string, boolean>>({
     sun: true,
     earth: true,
   });
-  const handleToggleIconCriterion = (id: string) => {
-    setActiveLayers((previous) => ({ ...previous, [id]: !previous[id] }));
-  };
-
-  const iconCriteriaItems: CriterionIconListItem[] = useMemo(
-    () => [
-      {
-        id: "sun",
-        label: "Sun center visible",
-        value: selectedPoint
-          ? selectedPoint.is_sun_visible
-            ? "Visible"
-            : "Not visible"
-          : timelineLoading
-            ? "Loading…"
-            : "N/D",
-        icon: "sun",
-        active: activeLayers.sun,
-      },
-      {
-        id: "earth",
-        label: "Earth direct visibility",
-        value: selectedPoint
-          ? selectedPoint.is_earth_visible
-            ? "Visible"
-            : "Blocked"
-          : timelineLoading
-            ? "Loading…"
-            : "N/D",
-        icon: "broadcast",
-        active: activeLayers.earth,
-      },
-    ],
-    [activeLayers, selectedPoint, timelineLoading]
-  );
 
   const rightGridRows: CriteriaGridRow[] = useMemo(
     () => [
@@ -832,10 +795,58 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           </div>
         </div>
 
-        <HudCard className="w-full shrink min-h-0 pointer-events-auto flex flex-col gap-2.5">
-          <HudCardHeader title="Ephemeris at selected UTC" />
+        {/* Card de Efemérides: Vista compacta (2 primeros datos) vs expandida con botón see more / see less */}
+        <HudCard
+          className={`w-full pointer-events-auto flex flex-col gap-2.5 transition-all duration-500 ease-in ${
+            isEphemerisExpanded
+              ? "flex-1 min-h-[clamp(280px,45vh,520px)] max-h-[calc(100vh-clamp(7rem,14vh,9rem))]"
+              : "shrink-0 min-h-0"
+          }`}
+        >
+          <HudCardHeader
+            title="Ephemeris at selected UTC"
+            action={
+              selectedPoint || librationData || timelineLoading ? (
+                <button
+                  type="button"
+                  onClick={() => setIsEphemerisExpanded((prev) => !prev)}
+                  className="font-heading font-light text-[clamp(0.65rem,1.2vh,0.75rem)] leading-tight underline text-palette-cream/80 hover:text-[#FAFAFA] transition-colors bg-transparent border-0 cursor-pointer p-0"
+                >
+                  {isEphemerisExpanded ? "see less" : "see more"}
+                </button>
+              ) : undefined
+            }
+          />
 
-          <div className="w-full border-t border-white/10 pt-2 overflow-y-auto max-h-[clamp(200px,38vh,420px)] pr-1">
+          {!isEphemerisExpanded ? (
+            /* Vista compacta por defecto: muestra únicamente los primeros dos datos recibidos */
+            <div className="w-full border-t border-white/10 pt-2">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10.5px] font-sans">
+                <div>
+                  <dt className="text-palette-cream/70 text-[10px] leading-tight">Sun azimuth / elevation</dt>
+                  <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                    {selectedPoint
+                      ? `${selectedPoint.sun_azimuth_deg.toFixed(2)}° / ${selectedPoint.sun_elevation_deg.toFixed(2)}°`
+                      : timelineLoading
+                        ? "…"
+                        : "N/D"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-palette-cream/70 text-[10px] leading-tight">Earth azimuth / elevation</dt>
+                  <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                    {selectedPoint
+                      ? `${selectedPoint.earth_azimuth_deg.toFixed(2)}° / ${selectedPoint.earth_elevation_deg.toFixed(2)}°`
+                      : timelineLoading
+                        ? "…"
+                        : "N/D"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          ) : (
+            /* Vista expandida: muestra la totalidad de métricas de efemérides y libración con scroll interno */
+            <div className="w-full border-t border-white/10 pt-2 overflow-y-auto max-h-[clamp(260px,55vh,520px)] pr-1">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10.5px] font-sans">
               <div>
                 <dt className="text-palette-cream/70 text-[10px] leading-tight">Sun azimuth / elevation</dt>
@@ -1017,14 +1028,34 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
               )}
             </dl>
           </div>
-        </HudCard>
+        )}
+      </HudCard>
 
-        <MapLegendCard
-          mode="detail"
-          title="Terrain & Vector Symbology"
-          className="w-full shrink-0 min-h-[clamp(175px,24vh,215px)] pointer-events-auto"
-        />
-      </aside>
+      {/* Grupo inferior de cards HUD: sale hacia abajo con animación ease-in al expandir la card de efemérides */}
+      <div
+        className="w-full shrink-0 overflow-hidden transition-all duration-500 ease-in"
+        style={{
+          maxHeight: isEphemerisExpanded ? "0px" : "360px",
+          opacity: isEphemerisExpanded ? 0 : 1,
+          pointerEvents: isEphemerisExpanded ? "none" : "auto",
+          transitionTimingFunction: "cubic-bezier(0.4, 0, 1, 1)",
+        }}
+      >
+        <div
+          className="w-full pt-1 transition-transform duration-500 ease-in"
+          style={{
+            transform: isEphemerisExpanded ? "translateY(100%)" : "translateY(0)",
+            transitionTimingFunction: "cubic-bezier(0.4, 0, 1, 1)",
+          }}
+        >
+          <MapLegendCard
+            mode="detail"
+            title="Terrain & Vector Symbology"
+            className="w-full shrink-0 min-h-[clamp(175px,24vh,215px)] pointer-events-auto"
+          />
+        </div>
+      </div>
+    </aside>
 
       {/* =========================================================================
           PASO 2C: COLUMNA HUD DERECHA (Entra desde el borde derecho hacia adentro con ease-out)
@@ -1084,6 +1115,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
             <div
               onClick={() => {
                 if (isOverview) {
+                  triggerMinimapShake();
                   setFlightId((n) => n + 1);
                 } else {
                   handleToggleOverview();
@@ -1095,6 +1127,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   if (isOverview) {
+                    triggerMinimapShake();
                     setFlightId((n) => n + 1);
                   } else {
                     handleToggleOverview();
