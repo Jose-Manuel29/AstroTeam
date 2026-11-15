@@ -193,6 +193,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   const [librationError, setLibrationError] = useState<string | null>(null);
   const [librationLoading, setLibrationLoading] = useState(false);
   const [librationRetryKey, setLibrationRetryKey] = useState(0);
+  const [isEphemerisExpanded, setIsEphemerisExpanded] = useState<boolean>(false);
 
   useEffect(() => {
     let active = true;
@@ -768,7 +769,9 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           Con espaciado vertical suficiente para no solaparse jamás con el botón superior
          ========================================================================= */}
       <aside
-        className="absolute left-[clamp(1rem,3.8vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(250px,22vw,336px)] z-20 flex flex-col justify-start gap-[clamp(0.4rem,1.2vh,0.9rem)] max-h-[calc(100vh-clamp(4.8rem,9.5vh,6.5rem))] pointer-events-none overflow-y-auto pr-1 py-7 scroll-smooth"
+        className={`absolute left-[clamp(1rem,3.8vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(250px,22vw,336px)] z-20 flex flex-col justify-start gap-[clamp(0.4rem,1.2vh,0.9rem)] max-h-[calc(100vh-clamp(4.8rem,9.5vh,6.5rem))] pointer-events-none pr-1 py-7 scroll-smooth transition-all duration-500 ease-in ${
+          isEphemerisExpanded ? "overflow-hidden" : "overflow-y-auto"
+        }`}
         style={{
           transform: moonArrived ? "translateX(0)" : "translateX(-430px)",
           opacity: moonArrived ? 1 : 0,
@@ -777,38 +780,57 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 28px, black calc(100% - 28px), transparent 100%)",
         }}
       >
-        <CriteriaSlidersCard
-          title="Site criteria thresholds"
-          items={sliderItems}
-          onChange={handleCriterionChange}
-          className="w-fit self-start min-w-[clamp(240px,18.5vw,290px)] shrink-0 min-h-[clamp(135px,18vh,160px)] pointer-events-auto"
-        />
-
-        <CriteriaKpiCard
-          title="Catalog criteria met"
-          value={fulfilledKpiPercent}
-          unit="%"
-          statusTier={currentStatusTier}
-          badgeText={`${metCriteriaCount}/2`}
-          subtitle={`${metCriteriaCount} of 2 period-summary thresholds met`}
-          className="w-fit self-start min-w-[clamp(200px,16vw,240px)] shrink-0 min-h-[clamp(58px,8vh,72px)] pointer-events-auto"
-        />
-
-        {timelineError && (
+        {/* Grupo superior de cards HUD: sale hacia arriba con animación ease-in al expandir la card de efemérides */}
+        <div
+          className="w-full shrink-0 overflow-hidden transition-all duration-500 ease-in"
+          style={{
+            maxHeight: isEphemerisExpanded ? "0px" : "600px",
+            opacity: isEphemerisExpanded ? 0 : 1,
+            pointerEvents: isEphemerisExpanded ? "none" : "auto",
+            transitionTimingFunction: "cubic-bezier(0.4, 0, 1, 1)",
+          }}
+        >
           <div
-            role="alert"
-            className="pointer-events-auto rounded-xl border border-rose-400/40 bg-rose-950/80 px-3 py-2 text-xs text-rose-100 shrink-0"
+            className="w-full flex flex-col items-start gap-[clamp(0.4rem,1.2vh,0.9rem)] pb-1 transition-transform duration-500 ease-in"
+            style={{
+              transform: isEphemerisExpanded ? "translateY(-100%)" : "translateY(0)",
+              transitionTimingFunction: "cubic-bezier(0.4, 0, 1, 1)",
+            }}
           >
-            <p className="mb-2">Failed to load timeline: {timelineError}</p>
-            <button
-              type="button"
-              onClick={() => setTimelineRetryKey((key) => key + 1)}
-              className="rounded-md border border-rose-200/40 px-2 py-1 hover:bg-rose-200/10"
-            >
-              Retry
-            </button>
+            <CriteriaSlidersCard
+              title="Site criteria thresholds"
+              items={sliderItems}
+              onChange={handleCriterionChange}
+              className="w-fit self-start min-w-[clamp(240px,18.5vw,290px)] shrink-0 min-h-[clamp(135px,18vh,160px)] pointer-events-auto"
+            />
+
+            <CriteriaKpiCard
+              title="Catalog criteria met"
+              value={fulfilledKpiPercent}
+              unit="%"
+              statusTier={currentStatusTier}
+              badgeText={`${metCriteriaCount}/2`}
+              subtitle={`${metCriteriaCount} of 2 period-summary thresholds met`}
+              className="w-fit self-start min-w-[clamp(200px,16vw,240px)] shrink-0 min-h-[clamp(58px,8vh,72px)] pointer-events-auto"
+            />
+
+            {timelineError && (
+              <div
+                role="alert"
+                className="pointer-events-auto rounded-xl border border-rose-400/40 bg-rose-950/80 px-3 py-2 text-xs text-rose-100 shrink-0"
+              >
+                <p className="mb-2">Failed to load timeline: {timelineError}</p>
+                <button
+                  type="button"
+                  onClick={() => setTimelineRetryKey((key) => key + 1)}
+                  className="rounded-md border border-rose-200/40 px-2 py-1 hover:bg-rose-200/10"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         <HudCard className="w-full shrink min-h-0 pointer-events-auto flex flex-col gap-2.5">
           <HudCardHeader title="Ephemeris at selected UTC" />
