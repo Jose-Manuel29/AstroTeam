@@ -6,7 +6,11 @@ import {
   SiteProvider,
   type PresetSite,
 } from "../lib/context/SiteContext";
-import { fetchSiteTimeline, type SiteTimeline } from "../lib/api";
+import {
+  fetchSiteTimeline,
+  type SiteTimeline,
+  type TimelinePoint,
+} from "../lib/api";
 import { celestialDirectionToScene } from "../lib/geo/celestial";
 import { toPresetSite } from "../lib/siteAdapters";
 import type { LandingSite } from "../types";
@@ -30,6 +34,65 @@ export interface SiteDetailViewProps {
   moonArrived?: boolean;
   onBackToPicker?: () => void;
   onSelectSite?: (siteId: string) => void;
+}
+
+interface SolarWindowEstimate {
+  startIndex: number;
+  startTimestamp: string;
+  endTimestamp: string;
+  durationHours: number;
+  continuesAtForecastEnd: boolean;
+}
+
+function findNextSolarWindow(
+  points: TimelinePoint[],
+  fromIndex: number
+): SolarWindowEstimate | null {
+  for (let startIndex = fromIndex; startIndex < points.length; startIndex += 1) {
+    if (!points[startIndex].is_sun_full_disk_visible) continue;
+
+    let endIndex = startIndex;
+    while (
+      endIndex + 1 < points.length &&
+      points[endIndex + 1].is_sun_full_disk_visible
+    ) {
+      endIndex += 1;
+    }
+
+    const startTimestamp = points[startIndex].timestamp_utc;
+    const nextPoint = points[endIndex + 1];
+    const endTimestamp =
+      nextPoint?.timestamp_utc ?? points[endIndex].timestamp_utc;
+
+    return {
+      startIndex,
+      startTimestamp,
+      endTimestamp,
+      durationHours:
+        (Date.parse(endTimestamp) - Date.parse(startTimestamp)) / 3_600_000,
+      continuesAtForecastEnd: !nextPoint,
+    };
+  }
+
+  return null;
+}
+
+function formatDurationHours(durationHours: number): string {
+  const totalHours = Math.max(0, Math.round(durationHours));
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  return days > 0 ? `${days}d ${hours}h` : `${hours} h`;
+}
+
+function formatUtcDateTime(timestamp: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(new Date(timestamp));
 }
 
 /**
@@ -96,6 +159,43 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   const selectedPoint = timelinePoints[currentIndex] ?? null;
   const firstPoint = timelinePoints[0];
   const lastPoint = timelinePoints[timelinePoints.length - 1];
+  const nextSolarWindow = useMemo(
+    () => findNextSolarWindow(timelinePoints, currentIndex),
+    [timelinePoints, currentIndex]
+  );
+  const solarWindowValue = !selectedPoint
+    ? "N/D"
+    : !nextSolarWindow
+    ? "NONE"
+    : nextSolarWindow.continuesAtForecastEnd &&
+      nextSolarWindow.durationHours === 0
+    ? "ACTIVE"
+    : `${nextSolarWindow.continuesAtForecastEnd ? "≥" : ""}${formatDurationHours(
+        nextSolarWindow.durationHours
+      )}`;
+  const solarWindowSubtitle = !selectedPoint
+    ? timelineLoading
+      ? "Loading forecast..."
+      : timelineError
+      ? "Timeline could not be loaded"
+      : "No timeline sample selected"
+    : !nextSolarWindow
+    ? "No full-disk window remains in this forecast"
+    : nextSolarWindow.continuesAtForecastEnd
+    ? `${
+        nextSolarWindow.startIndex === currentIndex
+          ? "From selected time"
+          : "Next window"
+      }: visible from ${formatUtcDateTime(
+        nextSolarWindow.startTimestamp
+      )} UTC; forecast ends during visibility · hourly estimate`
+    : `${
+        nextSolarWindow.startIndex === currentIndex
+          ? "From selected time"
+          : "Next window"
+      }: ${formatUtcDateTime(
+        nextSolarWindow.startTimestamp
+      )}–${formatUtcDateTime(nextSolarWindow.endTimestamp)} UTC · hourly estimate`;
 
   const sliderItems: CriterionSliderItem[] = useMemo(
     () =>
@@ -103,14 +203,14 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         ? [
             {
               id: "illumination",
-              label: "Solar illumination (site catalog)",
+              label: "Sun center visible",
               value: site.illuminationAvgPercent,
               readOnly: true,
               unit: "%",
             },
             {
               id: "earthLink",
-              label: "Earth visibility (site catalog)",
+              label: "Earth center visible",
               value: site.earthVisibilityPercent,
               readOnly: true,
               unit: "%",
@@ -497,7 +597,8 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         }}
       >
         <CriteriaSlidersCard
-          title="Site catalog data"
+          title="Visibility summary"
+          subtitle="Percent of hourly timeline samples"
           items={sliderItems}
           className="w-full shrink"
         />
@@ -559,9 +660,9 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
 
           <CriteriaDaysKpiCard
             title="Continuous solar window"
-            days="N/D"
+            days={solarWindowValue}
             unitLabel=""
-            subtitle="Este indicador no está disponible en los endpoints actuales"
+            subtitle={solarWindowSubtitle}
             className="w-full shrink"
           />
         </div>
