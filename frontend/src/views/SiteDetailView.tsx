@@ -42,6 +42,7 @@ interface SolarWindowEstimate {
   endTimestamp: string;
   durationHours: number;
   continuesAtForecastEnd: boolean;
+  endState: "PARTIAL" | "SHADOW" | null;
 }
 
 function findNextSolarWindow(
@@ -71,6 +72,11 @@ function findNextSolarWindow(
       durationHours:
         (Date.parse(endTimestamp) - Date.parse(startTimestamp)) / 3_600_000,
       continuesAtForecastEnd: !nextPoint,
+      endState: nextPoint
+        ? nextPoint.is_sun_any_part_visible
+          ? "PARTIAL"
+          : "SHADOW"
+        : null,
     };
   }
 
@@ -167,12 +173,9 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
     ? "N/D"
     : !nextSolarWindow
     ? "NONE"
-    : nextSolarWindow.continuesAtForecastEnd &&
-      nextSolarWindow.durationHours === 0
-    ? "ACTIVE"
-    : `${nextSolarWindow.continuesAtForecastEnd ? "≥" : ""}${formatDurationHours(
-        nextSolarWindow.durationHours
-      )}`;
+    : nextSolarWindow.continuesAtForecastEnd
+    ? "STILL VISIBLE"
+    : formatDurationHours(nextSolarWindow.durationHours);
   const solarWindowSubtitle = !selectedPoint
     ? timelineLoading
       ? "Loading forecast..."
@@ -186,16 +189,18 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         nextSolarWindow.startIndex === currentIndex
           ? "From selected time"
           : "Next window"
-      }: visible from ${formatUtcDateTime(
-        nextSolarWindow.startTimestamp
-      )} UTC; forecast ends during visibility · hourly estimate`
+        }: still visible at ${formatUtcDateTime(
+          nextSolarWindow.endTimestamp
+        )} UTC; end is outside forecast · hourly estimate`
     : `${
         nextSolarWindow.startIndex === currentIndex
           ? "From selected time"
           : "Next window"
-      }: ${formatUtcDateTime(
-        nextSolarWindow.startTimestamp
-      )}–${formatUtcDateTime(nextSolarWindow.endTimestamp)} UTC · hourly estimate`;
+        }: full disk ${formatUtcDateTime(
+          nextSolarWindow.startTimestamp
+        )}–${formatUtcDateTime(
+          nextSolarWindow.endTimestamp
+        )} UTC; then ${nextSolarWindow.endState?.toLowerCase()} · hourly estimate`;
 
   const sliderItems: CriterionSliderItem[] = useMemo(
     () =>
