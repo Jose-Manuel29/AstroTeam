@@ -10,15 +10,23 @@ export const NORMAL_URL = "/textures/normal_lola_tangent_2k.png";
 
 const pixelCache = new WeakMap<object, ImageData>();
 
-function readPixels(image: CanvasImageSource & { width: number; height: number }): ImageData {
+// Pre-carga las texturas DEM y Normal de 2K en cuanto se importa el módulo
+useLoader.preload(THREE.TextureLoader, [DEM_URL, NORMAL_URL]);
+
+function readPixels(image: CanvasImageSource & { width?: number; height?: number }): ImageData | null {
+  if (!image || !image.width || !image.height) return null;
   const cached = pixelCache.get(image);
   if (cached) return cached;
+  // Muestreo en rejilla 512x512 (coincide con la resolución de malla del terreno y reduce 16x el bloqueo del hilo principal)
+  const w = Math.min(image.width, 512);
+  const h = Math.min(image.height, 512);
   const canvas = document.createElement("canvas");
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(image, 0, 0);
-  const data = ctx.getImageData(0, 0, image.width, image.height);
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(image, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h);
   pixelCache.set(image, data);
   return data;
 }
@@ -37,6 +45,9 @@ export function useTerrainHeight(
 
   return useMemo(() => {
     const img = readPixels(dem.image as HTMLImageElement);
+    if (!img) {
+      return () => displacementBias;
+    }
     const { width: w, height: h, data } = img;
     const at = (c: number, r: number) => data[(r * w + c) * 4] / 255;
 

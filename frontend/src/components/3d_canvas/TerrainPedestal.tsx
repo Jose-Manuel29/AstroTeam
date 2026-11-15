@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import * as THREE from "three";
 import { Line } from "@react-three/drei";
 import { useTerrainHeight } from "@/lib/geo/useTerrainHeight";
@@ -74,8 +74,6 @@ export const TerrainPedestal: React.FC<TerrainPedestalProps> = ({
     g.computeVertexNormals();
     return g;
   }, [heightAt, size, segments, half, baseY]);
-
-  useEffect(() => () => geometry.dispose(), [geometry]);
 
   const rim = useMemo<[number, number, number][]>(
     () => [

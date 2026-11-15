@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, Suspense } from "react";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import { LunarSurface } from "../components/3d_canvas/LunarSurface";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import presetSitesData from "../../public/data/preset_sites.json";
+import { LunarMapViewer } from "../components/3d_canvas/LunarMapViewer";
+import {
+  SiteProvider,
+  type PresetSite,
+  type PresetSitesFile,
+} from "../lib/context/SiteContext";
 import {
   HudCard,
   CriteriaSlidersCard,
@@ -18,6 +22,8 @@ import {
   SouthPoleMinimap,
 } from "../components/hud";
 import { CANDIDATE_LANDING_SITES } from "../data/landingSites";
+
+const PRESET_SITES: PresetSite[] = (presetSitesData as PresetSitesFile).sites;
 
 export interface SiteDetailViewProps {
   siteSlug?: string;
@@ -238,8 +244,22 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   const [mapLoaded, setMapLoaded] = useState<boolean>(false);
   const [allowMapEntrance, setAllowMapEntrance] = useState<boolean>(false);
 
+  // Estado del sitio enfocado dentro del nuevo visor 3D (diorama + capas holográficas + vuelo de cámara)
+  const [selectedMapSite, setSelectedMapSite] = useState<PresetSite | null>(null);
+  const [flightId, setFlightId] = useState<number>(0);
+
+  const handleMapLoaded = useCallback(() => {
+    setMapLoaded(true);
+  }, []);
+
+  const handleSelectMapSite = useCallback((clickedSite: PresetSite) => {
+    setSelectedMapSite((prev) => (prev?.id === clickedSite.id ? null : clickedSite));
+    setFlightId((n) => n + 1);
+  }, []);
+
   useEffect(() => {
     setAllowMapEntrance(false);
+    setSelectedMapSite(null);
   }, [siteSlug]);
 
   useEffect(() => {
@@ -250,24 +270,20 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
     const timer = setTimeout(() => {
       setAllowMapEntrance(true);
     }, 450);
-    return () => clearTimeout(timer);
+    // Respaldo de seguridad para garantizar que el contenedor del mapa nunca quede bloqueado en opacidad 0
+    const fallbackLoaded = setTimeout(() => {
+      setMapLoaded(true);
+    }, 1200);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(fallbackLoaded);
+    };
   }, [moonArrived]);
 
   const showMap = allowMapEntrance && mapLoaded;
 
-  // Posición de la luz solar 3D controlada por el slider horario
-  const lightPosition: [number, number, number] = useMemo(() => {
-    const sunAzimuth = (hourOfDay / 24) * 360;
-    const sunElevation = 1.5 * Math.sin((hourOfDay / 24) * Math.PI * 2);
-    const radAz = (sunAzimuth * Math.PI) / 180;
-    const radEl = (sunElevation * Math.PI) / 180;
-    const dist = 80;
-    return [
-      dist * Math.cos(radEl) * Math.sin(radAz),
-      Math.max(dist * Math.sin(radEl), 14),
-      dist * Math.cos(radEl) * Math.cos(radAz),
-    ];
-  }, [hourOfDay]);
+  // Azimut solar controlado por el slider horario superior (TopTemporalController)
+  const sunAzimuthDeg = useMemo(() => (hourOfDay / 24) * 360, [hourOfDay]);
 
   return (
     <div className="absolute inset-0 bg-transparent overflow-hidden select-none pointer-events-none">
@@ -300,51 +316,55 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         }}
       >
         {moonArrived && (
-          <Canvas
-            gl={{ alpha: true, antialias: true }}
-            camera={{ position: [0, 56, 84], fov: 36, near: 0.5, far: 300 }}
-          >
-            <ambientLight intensity={0.28} color="#7F7B8C" />
-
-            <directionalLight
-              position={lightPosition}
-              intensity={2.35}
-              color="#FFFFFF"
+          <SiteProvider initialSite={selectedMapSite} initialZoneOffset={0.02}>
+            <LunarMapViewer
+              sites={PRESET_SITES}
+              selectedSite={selectedMapSite}
+              onSelectSite={handleSelectMapSite}
+              flightId={flightId}
+              sun={{
+                angle: sunAzimuthDeg,
+                intensity: 2.2,
+                ambientIntensity: 0.22,
+              }}
+              zones={{
+                visible: true,
+                color: "#FF9F1C",
+                edgeOpacity: 0.75,
+                gradientPower: 1.6,
+                emissiveIntensity: 0.8,
+              }}
+              markers={{
+                visible: true,
+                poleHeight: 2,
+              }}
+              terrain={{
+                displacementScale: 2.5,
+                displacementBias: -1.25,
+                showPedestal: true,
+                pedestalDepth: 4,
+                focusRadius: 15.0,
+              }}
+              earth={{
+                visible: activeLayers["dte-link"],
+                targetPosition: [40, 50, -30],
+              }}
+              grid={{
+                visible: activeLayers["solar-flux"],
+                height: 25,
+                opacity: 0.12,
+              }}
+              camera={{
+                initialPosition: [0, 50, 100],
+                fov: 42,
+                flyOffset: [6, 8, 10],
+                lerpFactor: 0.06,
+              }}
+              showStars={false}
+              className="relative w-full h-full bg-transparent"
+              onLoaded={handleMapLoaded}
             />
-
-            <directionalLight
-              position={[45, 28, -45]}
-              intensity={0.45}
-              color="#D9CEC5"
-            />
-
-            <Suspense fallback={null}>
-              <LunarSurface
-                size={76}
-                displacementScale={12.5}
-                displacementBias={-2.5}
-                normalScale={1.85}
-                roughness={0.94}
-                metalness={0.02}
-                position={[0, -14.5, 4]}
-                rotation={[0, Math.PI / 4, 0]}
-                showDioramaBase={true}
-                onLoaded={() => setMapLoaded(true)}
-              />
-            </Suspense>
-
-            <OrbitControls
-              target={[0, -2, 0]}
-              enablePan={false}
-              enableDamping
-              dampingFactor={0.05}
-              minPolarAngle={Math.PI / 4.2}
-              maxPolarAngle={Math.PI / 2.35}
-              minDistance={60}
-              maxDistance={115}
-              rotateSpeed={0.55}
-            />
-          </Canvas>
+          </SiteProvider>
         )}
       </div>
 

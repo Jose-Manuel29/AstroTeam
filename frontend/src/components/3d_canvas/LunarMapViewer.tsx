@@ -114,6 +114,7 @@ export interface LunarMapViewerProps {
   camera?: CameraConfig;
   showStars?: boolean;
   className?: string;
+  onLoaded?: () => void;
   children?: React.ReactNode;
 }
 
@@ -136,8 +137,9 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
   earth,
   grid,
   camera,
-  showStars = true,
-  className = "relative h-screen w-screen bg-black",
+  showStars = false,
+  className = "relative w-full h-full bg-transparent",
+  onLoaded,
   children,
 }) => {
   const { selectedSite: contextSite } = useSiteContext();
@@ -152,6 +154,7 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
     <div className={className}>
       <Canvas
         shadows
+        gl={{ alpha: true, antialias: true }}
         camera={{
           position: camera?.initialPosition ?? [0, 50, 100],
           fov: camera?.fov ?? 45,
@@ -215,6 +218,7 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
             showPedestal={terrain?.showPedestal}
             pedestalDepth={terrain?.pedestalDepth}
             pedestalColor={terrain?.pedestalColor}
+            onLoaded={onLoaded}
           >
             <SiteZonesOverlay
               sites={sites}

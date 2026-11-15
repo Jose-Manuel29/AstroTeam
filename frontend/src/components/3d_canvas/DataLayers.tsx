@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Line, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { useSiteContext, type PresetSite } from "@/lib/context/SiteContext";
@@ -74,17 +74,6 @@ export const DataLayers: React.FC<DataLayersProps> = ({
   const topRingGeo = useMemo(
     () => new THREE.RingGeometry(layerSize * 0.34, layerSize * 0.35, 64),
     [layerSize]
-  );
-
-  useEffect(
-    () => () => {
-      baseGrid.geometry.dispose();
-      radarGrid.geometry.dispose();
-      planeGeo.dispose();
-      edgesGeo.dispose();
-      topRingGeo.dispose();
-    },
-    [baseGrid, radarGrid, planeGeo, edgesGeo, topRingGeo]
   );
 
   // Esquinas en coordenadas locales del grupo (centrado en siteCoords.x, 0, siteCoords.z)

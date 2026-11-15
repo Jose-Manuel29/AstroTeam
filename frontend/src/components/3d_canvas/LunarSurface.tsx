@@ -1,233 +1,366 @@
 "use client";
 
-import React, { useMemo, useCallback, useEffect } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useLoader } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
+import { useSiteContext, type PresetSite } from "@/lib/context/SiteContext";
+import { TERRAIN, latLonToPlane } from "@/lib/geo/polarStereo";
+import { DEM_URL, NORMAL_URL, useTerrainHeight } from "@/lib/geo/useTerrainHeight";
+import { TerrainPedestal } from "@/components/3d_canvas/TerrainPedestal";
+
+export const DEFAULT_ALBEDO_URL = "/textures/albedo_wac_delighted.webp";
+
+// Pre-carga las texturas base para acelerar la transición hacia SiteDetailView
+useLoader.preload(THREE.TextureLoader, [DEFAULT_ALBEDO_URL, DEM_URL, NORMAL_URL]);
 
 export interface LunarSurfaceProps {
-  /**
-   * Dimensión del plano cuadrado en unidades de Three.js (ancho y alto).
-   * @default 100
-   */
+  /** Albedo WAC sin sombras fotográficas (delight_wac.py). */
+  mapUrl?: string;
+  /** DEM LOLA (escala de grises → desplazamiento). */
+  demUrl?: string;
+  /** Normal map tangente derivado del DEM (dem_to_normal.py). */
+  normalUrl?: string;
   size?: number;
-  /**
-   * Factor de escala vertical para el mapa de desplazamiento (LOLA DEM).
-   * Controla la altura macroscópica de picos y cráteres lunares.
-   * @default 12
-   */
-  displacementScale?: number;
-  /**
-   * Desplazamiento base para centrar la elevación vertical.
-   * @default -3
-   */
-  displacementBias?: number;
-  /**
-   * Intensidad del mapa de normales (micro-relieve de la superficie).
-   * @default 1.5
-   */
-  normalScale?: number;
-  /**
-   * Rugosidad del material para simular el regolito lunar.
-   * @default 0.92
-   */
-  roughness?: number;
-  /**
-   * Metalicidad del suelo lunar.
-   * @default 0.02
-   */
-  metalness?: number;
-  /**
-   * Modo malla de alambre para depuración geométrica.
-   * @default false
-   */
-  wireframe?: boolean;
-  /**
-   * Posición en el espacio 3D.
-   * @default [0, 0, 0]
-   */
-  position?: [number, number, number];
-  /**
-   * Rotación del bloque completo en radianes.
-   * @default [0, Math.PI / 4, 0]
-   */
-  rotation?: [number, number, number];
-  /**
-   * Subdivisión de vértices para la geometría plana.
-   * @default 512
-   */
   segments?: number;
-  /**
-   * Muestra el bloque base tipo diorama y los marcadores verticales de telemetría.
-   * @default true
-   */
-  showDioramaBase?: boolean;
-  /**
-   * Callback disparado cuando las 3 texturas científicas están cargadas y la malla lista en GPU.
-   */
+  displacementScale?: number;
+  displacementBias?: number;
+  normalScale?: number;
+  roughness?: number;
+  metalness?: number;
+  wireframe?: boolean;
+  /** Sitio seleccionado (si se omite, se lee de useSiteContext). */
+  selectedSite?: PresetSite | null;
+  /** Radio del recorte del diorama holográfico en unidades (15 u ≈ 135 km). */
+  focusRadius?: number;
+  /** Bloque sólido (pedestal) bajo el relieve, estilo maqueta. */
+  showPedestal?: boolean;
+  pedestalDepth?: number;
+  pedestalColor?: string;
+  /** Callback invocado cuando las texturas terminan de cargar */
   onLoaded?: () => void;
+  children?: React.ReactNode;
+}
+
+interface CutoutUniforms {
+  uFocusPos: { value: THREE.Vector2 };
+  uFocusRadius: { value: number };
+  uFocusActive: { value: number };
+}
+
+interface DioramaPedestalProps {
+  centerX: number;
+  centerZ: number;
+  radius: number;
+  terrainSize: number;
+  demUrl: string;
+  displacementScale: number;
+  displacementBias: number;
+  depth: number;
 }
 
 /**
- * Componente LunarSurface (Vista Local / Polo Sur Lunar)
- * ----------------------------------------------------
- * Renderiza la superficie lunar como un bloque topográfico 3D isométrico (diorama)
- * utilizando texturas de alta resolución generadas con GDAL (LROC WAC + LOLA DEM).
+ * Pedestal cilíndrico del Diorama Aislado (#050505 negro mate):
+ * Sigue a `selectedSite` en (x, z) con radio `uFocusRadius`. Su borde superior se
+ * adapta a la cota real del DEM a lo largo del perímetro circular para que parezca
+ * un bloque sólido extraído directamente del Polo Sur sin huecos ni intersecciones.
  */
-const LUNAR_SURFACE_TEXTURES = [
-  "/textures/skin_wac_2k.webp",
-  "/textures/displacement_lola_2k.png",
-  "/textures/normal_lola_2k.png",
-];
-
-// Precarga en segundo plano para evitar tirones al entrar a la vista de detalle
-useLoader.preload(THREE.TextureLoader, LUNAR_SURFACE_TEXTURES);
-
-export const LunarSurface: React.FC<LunarSurfaceProps> = ({
-  size = 86,
-  displacementScale = 13,
-  displacementBias = -2.5,
-  normalScale = 1.8,
-  roughness = 0.94,
-  metalness = 0.02,
-  wireframe = false,
-  position = [0, -14, 0],
-  rotation = [0, Math.PI / 4, 0],
-  segments = 256,
-  showDioramaBase = true,
-  onLoaded,
+const DioramaPedestal: React.FC<DioramaPedestalProps> = ({
+  centerX,
+  centerZ,
+  radius,
+  terrainSize,
+  demUrl,
+  displacementScale,
+  displacementBias,
+  depth,
 }) => {
-  // Carga paralela de las 3 texturas procesadas por GDAL desde /textures/
-  const [colorMap, displacementMap, normalMap] = useLoader(
-    THREE.TextureLoader,
-    LUNAR_SURFACE_TEXTURES
-  );
+  const heightAt = useTerrainHeight(demUrl, displacementScale, displacementBias);
+  // Radio efectivo ligeramente dentro del borde smoothstep para evitar flecos flotantes
+  const r = radius * 0.9;
+  const baseY = displacementBias - depth;
+  const radialSegments = 96;
 
+  const { wallGeo, rimPoints } = useMemo(() => {
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const rim: [number, number, number][] = [];
+
+    for (let i = 0; i <= radialSegments; i++) {
+      const theta = (i / radialSegments) * Math.PI * 2;
+      const dx = Math.cos(theta) * r;
+      const dz = Math.sin(theta) * r;
+      const wx = centerX + dx;
+      const wz = centerZ + dz;
+
+      const u = THREE.MathUtils.clamp(0.5 + wx / terrainSize, 0, 1);
+      const v = THREE.MathUtils.clamp(0.5 - wz / terrainSize, 0, 1);
+      const topY = heightAt(u, v) - 0.03;
+
+      positions.push(dx, topY, dz);
+      positions.push(dx, baseY, dz);
+      rim.push([dx, baseY, dz]);
+    }
+
+    for (let i = 0; i < radialSegments; i++) {
+      const a = i * 2;
+      indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    g.setIndex(indices);
+    g.computeVertexNormals();
+
+    return { wallGeo: g, rimPoints: rim };
+  }, [centerX, centerZ, r, terrainSize, heightAt, baseY]);
+
+  return (
+    <group position={[centerX, 0, centerZ]}>
+      {/* Pared cilíndrica acoplada al relieve superior */}
+      <mesh geometry={wallGeo} castShadow receiveShadow>
+        <meshStandardMaterial
+          color="#050505"
+          roughness={0.95}
+          metalness={0.05}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* Base cilíndrica inferior en negro mate (#050505) */}
+      <mesh position={[0, baseY - 0.1, 0]} receiveShadow>
+        <cylinderGeometry args={[r, r, 0.2, radialSegments]} />
+        <meshStandardMaterial color="#050505" roughness={0.95} metalness={0.05} />
+      </mesh>
+
+      {/* Aro holográfico sutil en la base del cilindro */}
+      <Line
+        points={rimPoints}
+        color="#00ffff"
+        lineWidth={1.2}
+        transparent
+        opacity={0.45}
+      />
+    </group>
+  );
+};
+
+/**
+ * Mapa 3D Local: bloque topográfico WAC (albedo) + LOLA DEM (relieve) + normales.
+ * Cuando hay un `selectedSite` activo, recorta el terreno mediante GLSL (`uFocusPos`,
+ * `uFocusRadius`) aislando un Diorama Holográfico sobre un pedestal cilíndrico mate.
+ */
+export const LunarSurface: React.FC<LunarSurfaceProps> = ({
+  mapUrl = DEFAULT_ALBEDO_URL,
+  demUrl = DEM_URL,
+  normalUrl = NORMAL_URL,
+  size = TERRAIN.size,
+  segments = TERRAIN.segments,
+  displacementScale = TERRAIN.displacementScale,
+  displacementBias = TERRAIN.displacementBias,
+  normalScale = 1,
+  roughness = 1,
+  metalness = 0,
+  wireframe = false,
+  selectedSite: selectedSiteProp,
+  focusRadius = 15.0,
+  showPedestal = true,
+  pedestalDepth = 4,
+  pedestalColor = "#0b0e14",
+  onLoaded,
+  children,
+}) => {
+  const { selectedSite: contextSite } = useSiteContext();
+  const activeSite = selectedSiteProp !== undefined ? selectedSiteProp : contextSite;
+
+  const [colorMap, displacementMap, normalMap] = useLoader(THREE.TextureLoader, [
+    mapUrl,
+    demUrl,
+    normalUrl,
+  ]);
+
+  const loadedNotifiedRef = useRef(false);
   useEffect(() => {
-    if (colorMap && displacementMap && normalMap) {
+    colorMap.colorSpace = THREE.SRGBColorSpace;
+    colorMap.anisotropy = 8;
+    colorMap.needsUpdate = true;
+    if (!loadedNotifiedRef.current && colorMap && displacementMap && normalMap) {
+      loadedNotifiedRef.current = true;
       onLoaded?.();
     }
   }, [colorMap, displacementMap, normalMap, onLoaded]);
 
-  // Optimización de configuración de texturas para Three.js
-  useMemo(() => {
-    colorMap.colorSpace = THREE.SRGBColorSpace;
-    colorMap.wrapS = THREE.ClampToEdgeWrapping;
-    colorMap.wrapT = THREE.ClampToEdgeWrapping;
+  const normalScaleVec = useMemo(() => new THREE.Vector2(normalScale, normalScale), [normalScale]);
 
-    displacementMap.wrapS = THREE.ClampToEdgeWrapping;
-    displacementMap.wrapT = THREE.ClampToEdgeWrapping;
+  // Coordenadas (x, z) del sitio seleccionado en el plano
+  const focusCoords = useMemo(() => {
+    if (!activeSite) return null;
+    const p = latLonToPlane(activeSite.lat, activeSite.lon, size);
+    if (!p.inside) return null;
+    return p;
+  }, [activeSite, size]);
 
-    normalMap.wrapS = THREE.ClampToEdgeWrapping;
-    normalMap.wrapT = THREE.ClampToEdgeWrapping;
-  }, [colorMap, displacementMap, normalMap]);
-
-  const normalScaleVector = useMemo(
-    () => new THREE.Vector2(normalScale, normalScale),
-    [normalScale]
+  // Uniforms compartidos entre el material principal y el depth material
+  const cutoutUniforms = useMemo<CutoutUniforms>(
+    () => ({
+      uFocusPos: { value: new THREE.Vector2(0, 0) },
+      uFocusRadius: { value: focusRadius },
+      uFocusActive: { value: 0 },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
-  // Memoizado para que Three.js compile el shader una única vez y no en cada cambio de luz
-  const handleBeforeCompile = useCallback((shader: THREE.WebGLProgramParametersWithUniforms) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "#include <map_fragment>",
-      `
-      #include <map_fragment>
-      #ifdef USE_MAP
-        float luma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-        diffuseColor.rgb = mix(vec3(luma), diffuseColor.rgb, 0.15);
-        diffuseColor.rgb = smoothstep(0.03, 0.95, diffuseColor.rgb);
-        diffuseColor.rgb = diffuseColor.rgb * 0.88 + vec3(0.06);
-      #endif
-      `
-    );
-  }, []);
+  // Actualiza los uniforms reactivamente cuando cambia el sitio o el radio
+  useEffect(() => {
+    if (focusCoords) {
+      cutoutUniforms.uFocusPos.value.set(focusCoords.x, focusCoords.z);
+      cutoutUniforms.uFocusRadius.value = focusRadius;
+      cutoutUniforms.uFocusActive.value = 1.0;
+    } else {
+      cutoutUniforms.uFocusActive.value = 0.0;
+    }
+  }, [focusCoords, focusRadius, cutoutUniforms]);
+
+  // Material estándar del terreno con inyección GLSL para el recorte del diorama
+  const surfaceMaterial = useMemo(() => {
+    const mat = new THREE.MeshStandardMaterial({
+      map: colorMap,
+      displacementMap,
+      displacementScale,
+      displacementBias,
+      normalMap,
+      normalScale: normalScaleVec,
+      roughness,
+      metalness,
+      wireframe,
+      transparent: true,
+      depthWrite: true,
+    });
+
+    mat.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, cutoutUniforms);
+
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec2 vWorldXZ;")
+        .replace(
+          "#include <project_vertex>",
+          `#include <project_vertex>
+vWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
+        );
+
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          `#include <common>
+varying vec2 vWorldXZ;
+uniform vec2 uFocusPos;
+uniform float uFocusRadius;
+uniform float uFocusActive;`
+        )
+        .replace(
+          "#include <dithering_fragment>",
+          `#include <dithering_fragment>
+if (uFocusActive > 0.5) {
+  float dist = distance(vWorldXZ, uFocusPos);
+  float focusAlpha = 1.0 - smoothstep(uFocusRadius * 0.85, uFocusRadius, dist);
+  gl_FragColor.a *= focusAlpha;
+  if (gl_FragColor.a < 0.01) discard;
+}`
+        );
+    };
+    mat.customProgramCacheKey = () => "lunar-surface-diorama-cutout-v1";
+    return mat;
+  }, [
+    colorMap,
+    displacementMap,
+    displacementScale,
+    displacementBias,
+    normalMap,
+    normalScaleVec,
+    roughness,
+    metalness,
+    wireframe,
+    cutoutUniforms,
+  ]);
+
+  // Depth material sincronizado con el desplazamiento y el recorte
+  const depthMaterial = useMemo(() => {
+    const mat = new THREE.MeshDepthMaterial({
+      depthPacking: THREE.RGBADepthPacking,
+      displacementMap,
+      displacementScale,
+      displacementBias,
+    });
+
+    mat.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, cutoutUniforms);
+
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec2 vWorldXZ;")
+        .replace(
+          "#include <project_vertex>",
+          `#include <project_vertex>
+vWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
+        );
+
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          `#include <common>
+varying vec2 vWorldXZ;
+uniform vec2 uFocusPos;
+uniform float uFocusRadius;
+uniform float uFocusActive;`
+        )
+        .replace(
+          "gl_FragColor = packDepthToRGBA( fragCoordZ );",
+          `if (uFocusActive > 0.5 && distance(vWorldXZ, uFocusPos) > uFocusRadius) discard;
+gl_FragColor = packDepthToRGBA( fragCoordZ );`
+        );
+    };
+    mat.customProgramCacheKey = () => "lunar-depth-diorama-cutout-v1";
+    return mat;
+  }, [displacementMap, displacementScale, displacementBias, cutoutUniforms]);
 
   return (
-    <group position={position} rotation={rotation}>
-      {/* Superficie topográfica desplazada por LOLA DEM */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+    <group>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        material={surfaceMaterial}
+        customDepthMaterial={depthMaterial}
+        receiveShadow
+        castShadow
+      >
         <planeGeometry args={[size, size, segments, segments]} />
-        <meshStandardMaterial
-          map={colorMap}
-          displacementMap={displacementMap}
-          displacementScale={displacementScale}
-          displacementBias={displacementBias}
-          normalMap={normalMap}
-          normalScale={normalScaleVector}
-          roughness={roughness}
-          metalness={metalness}
-          wireframe={wireframe}
-          onBeforeCompile={handleBeforeCompile}
-        />
       </mesh>
 
-      {/* Base sólida tipo diorama para dar volumen al corte topográfico */}
-      {showDioramaBase && (
-        <mesh position={[0, -5.2, 0]}>
-          <boxGeometry args={[size * 0.995, 7.5, size * 0.995]} />
-          <meshStandardMaterial
-            color="#232227"
-            roughness={0.95}
-            metalness={0.05}
+      {/* Pedestal: Cilíndrico de Diorama (#050505) si hay sitio aislado; completo si no */}
+      {showPedestal &&
+        (focusCoords ? (
+          <DioramaPedestal
+            centerX={focusCoords.x}
+            centerZ={focusCoords.z}
+            radius={focusRadius}
+            terrainSize={size}
+            demUrl={demUrl}
+            displacementScale={displacementScale}
+            displacementBias={displacementBias}
+            depth={pedestalDepth}
           />
-        </mesh>
-      )}
+        ) : (
+          <TerrainPedestal
+            size={size}
+            segments={segments}
+            demUrl={demUrl}
+            displacementScale={displacementScale}
+            displacementBias={displacementBias}
+            depth={pedestalDepth}
+            color={pedestalColor}
+          />
+        ))}
 
-      {/* Balizas tácticas con líneas verticales punteadas (como en la referencia de diseño) */}
-      {showDioramaBase && (
-        <>
-          {/* Marcador Cresta Principal (Izquierda-Superior del bloque) */}
-          <group position={[-12, 6.2, -4]}>
-            <mesh>
-              <sphereGeometry args={[1.05, 16, 16]} />
-              <meshBasicMaterial color="#FFFFFF" />
-            </mesh>
-            <mesh>
-              <sphereGeometry args={[1.8, 16, 16]} />
-              <meshBasicMaterial color="#FFFFFF" transparent opacity={0.28} />
-            </mesh>
-            <Line
-              points={[
-                [0, 0, 0],
-                [0, 26, 0],
-              ]}
-              color="#FAFAFA"
-              lineWidth={1}
-              dashed
-              dashSize={0.9}
-              gapSize={0.9}
-              transparent
-              opacity={0.65}
-            />
-          </group>
-
-          {/* Marcador Zona Secundaria (Derecha-Inferior del bloque) */}
-          <group position={[14, 3.8, 12]}>
-            <mesh>
-              <sphereGeometry args={[1.05, 16, 16]} />
-              <meshBasicMaterial color="#FFFFFF" />
-            </mesh>
-            <mesh>
-              <sphereGeometry args={[1.8, 16, 16]} />
-              <meshBasicMaterial color="#FFFFFF" transparent opacity={0.28} />
-            </mesh>
-            <Line
-              points={[
-                [0, 0, 0],
-                [0, 38, 0],
-              ]}
-              color="#FAFAFA"
-              lineWidth={1}
-              dashed
-              dashSize={0.9}
-              gapSize={0.9}
-              transparent
-              opacity={0.65}
-            />
-          </group>
-        </>
-      )}
+      {children}
     </group>
   );
 };

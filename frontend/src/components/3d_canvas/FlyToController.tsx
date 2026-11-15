@@ -33,13 +33,21 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
   const flying = useRef(false);
 
   const goal = useMemo(() => {
-    if (!site) return null;
+    if (!site) {
+      if (flightId > 0) {
+        return {
+          target: new THREE.Vector3(0, 0, 0),
+          camera: new THREE.Vector3(0, 50, 100),
+        };
+      }
+      return null;
+    }
     const p = latLonToPlane(site.lat, site.lon);
     if (!p.inside) return null;
     const target = new THREE.Vector3(p.x, heightAt(p.u, p.v), p.z);
     return { target, camera: target.clone().add(new THREE.Vector3(...offset)) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [site, heightAt, offset[0], offset[1], offset[2]]);
+  }, [site, flightId, heightAt, offset[0], offset[1], offset[2]]);
 
   useEffect(() => {
     flying.current = goal !== null;

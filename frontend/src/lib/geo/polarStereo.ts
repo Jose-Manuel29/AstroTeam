@@ -15,7 +15,7 @@ export const MAP_HALF_EXTENT_M = 450_000;
 
 export const TERRAIN = {
   size: 100,
-  segments: 512,
+  segments: 256,
   displacementScale: 2.5,
   displacementBias: -1.25,
 } as const;

@@ -251,16 +251,6 @@ export const SiteZonesOverlay: React.FC<SiteZonesOverlayProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sites, dem, normal, sizeScale, sizeOverrides, terrainSize, terrainSegments, displacementScale, displacementBias]);
 
-  useEffect(
-    () => () =>
-      zones.forEach((z) => {
-        z.geometry.dispose();
-        z.material.dispose();
-        z.textures.forEach((t) => t.dispose());
-      }),
-    [zones]
-  );
-
   useEffect(() => {
     zones.forEach((z) => {
       z.material.color.set(color);
