@@ -7,10 +7,13 @@ import * as THREE from "three";
 import type { PresetSite } from "@/lib/context/SiteContext";
 import { latLonToPlane, type PlaneCoords } from "@/lib/geo/polarStereo";
 import { useTerrainHeight } from "@/lib/geo/useTerrainHeight";
+import { getSiteZoneKm } from "@/components/3d_canvas/SiteZonesOverlay";
 
 export interface SiteMarkersProps {
   sites: PresetSite[];
   selectedId?: string | null;
+  /** Si está en la vista general (overview), los indicadores se elevan significativamente de forma proporcional a la zona */
+  isOverview?: boolean;
   poleHeight?: number;
   visible?: boolean;
   onSelectSite?: (site: PresetSite) => void;
@@ -21,6 +24,7 @@ interface SiteMarkerItemProps {
   p: PlaneCoords;
   y: number;
   active: boolean;
+  isOverview: boolean;
   poleHeight: number;
   onSelectSite?: (site: PresetSite) => void;
 }
@@ -40,12 +44,25 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
   p,
   y,
   active,
+  isOverview,
   poleHeight,
   onSelectSite,
 }) => {
   const [isHovered, setIsHovered] = React.useState(false);
-  const currentHeight = active ? poleHeight * 1.35 : poleHeight;
-  const radius = 0.025; // grosor (diámetro) = 0.05
+  const zoneKm = getSiteZoneKm(site.id, 25);
+
+  // En la vista general aumentamos mucho la altura haciéndola proporcional al tamaño de la zona que abarcan:
+  // Desde ~9.5 unidades (Malapert, 10 km) hasta ~26 unidades (Schrödinger, 312 km).
+  // En la vista de detalle conserva la escala táctica compacta (poleHeight base).
+  const currentHeight = useMemo(() => {
+    if (isOverview) {
+      const normalizedRatio = Math.pow(Math.min(zoneKm, 312) / 312, 0.75);
+      return 8.5 + normalizedRatio * 18.0;
+    }
+    return active ? poleHeight * 1.35 : poleHeight;
+  }, [isOverview, zoneKm, active, poleHeight]);
+
+  const radius = isOverview ? 0.045 : 0.025; // grosor adaptado para visibilidad desde órbita general
 
   const htmlRef = useRef<HTMLDivElement>(null);
 
@@ -146,11 +163,13 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
 export const SiteMarkers: React.FC<SiteMarkersProps> = ({
   sites,
   selectedId,
+  isOverview: isOverviewProp,
   poleHeight = 2.5,
   visible = true,
   onSelectSite,
 }) => {
   const heightAt = useTerrainHeight();
+  const isOverview = isOverviewProp ?? (selectedId == null);
 
   const markers = useMemo(
     () =>
@@ -174,6 +193,7 @@ export const SiteMarkers: React.FC<SiteMarkersProps> = ({
             p={p}
             y={y}
             active={site.id === selectedId}
+            isOverview={isOverview}
             poleHeight={poleHeight}
             onSelectSite={onSelectSite}
           />

@@ -106,26 +106,26 @@ export const CriteriaGridCard: React.FC<CriteriaGridCardProps> = ({
         {displayedRows.map((row) => (
           <div
             key={row.id}
-            className="grid grid-cols-2 gap-x-[1vw] items-center px-[clamp(0.35rem,0.5vw,0.45rem)] py-[clamp(0.14rem,0.4vh,0.3rem)] rounded-[clamp(4px,0.6vh,6px)] bg-palette-charcoal/30 border border-white/5 w-full"
+            className="grid grid-cols-2 gap-x-[clamp(1rem,1.8vw,2rem)] items-center px-[clamp(0.5rem,0.8vw,0.75rem)] py-[clamp(0.2rem,0.48vh,0.38rem)] rounded-[clamp(6px,0.8vh,8px)] bg-palette-charcoal/30 border border-white/5 w-full"
           >
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col min-w-0 pr-2">
               {row.leftSubtext && (
-                <span className="font-sans text-[clamp(0.5rem,0.92vh,0.6rem)] leading-tight uppercase tracking-wider text-palette-cream/70 truncate">
+                <span className="font-sans text-[clamp(0.5rem,0.92vh,0.6rem)] leading-tight uppercase tracking-wider text-palette-cream/70 whitespace-nowrap">
                   {row.leftSubtext}
                 </span>
               )}
-              <span className="font-sans font-normal text-[clamp(0.65rem,1.2vh,0.78125rem)] leading-tight text-[#FAFAFA] truncate tabular-nums">
+              <span className="font-sans font-normal text-[clamp(0.65rem,1.2vh,0.78125rem)] leading-tight text-[#FAFAFA] whitespace-nowrap tabular-nums">
                 {row.leftText}
               </span>
             </div>
 
-            <div className="flex flex-col min-w-0 text-right">
+            <div className="flex flex-col min-w-0 text-right pl-2">
               {row.rightSubtext && (
-                <span className="font-sans text-[clamp(0.5rem,0.92vh,0.6rem)] leading-tight uppercase tracking-wider text-palette-cream/70 truncate">
+                <span className="font-sans text-[clamp(0.5rem,0.92vh,0.6rem)] leading-tight uppercase tracking-wider text-palette-cream/70 whitespace-nowrap">
                   {row.rightSubtext}
                 </span>
               )}
-              <span className="font-sans font-normal text-[clamp(0.65rem,1.2vh,0.78125rem)] leading-tight text-[#FAFAFA] truncate tabular-nums">
+              <span className="font-sans font-normal text-[clamp(0.65rem,1.2vh,0.78125rem)] leading-tight text-[#FAFAFA] whitespace-nowrap tabular-nums">
                 {row.rightText}
               </span>
             </div>

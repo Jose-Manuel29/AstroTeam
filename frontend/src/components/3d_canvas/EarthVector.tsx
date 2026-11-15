@@ -26,13 +26,17 @@ export interface EarthVectorProps {
   /** Velocidad del flujo animado de los guiones (0 = estático). */
   flowSpeed?: number;
   visible?: boolean;
+  /** Indica si hay enlace de comunicación directa con la Tierra (LoS). */
+  isConnected?: boolean;
+  /** Etiqueta que se muestra cuando no hay comunicación (en inglés). */
+  disconnectedLabel?: string;
 }
 
 /**
  * Vector de línea de vista hacia la Tierra (Direct-To-Earth, DTE).
- * - Si hay un `selectedSite` en contexto, nace exactamente de la coordenada (x, y, z)
- *   de ese cráter sobre el relieve.
- * - Línea discontinua animada + punta de flecha + etiqueta "TIERRA" (Space Mono).
+ * - Si isConnected es true (o hay visibilidad): haz vectorial discontinuo azul hacia la Tierra.
+ * - Si isConnected es false (o no hay visibilidad / sin enlace): trayectoria parabólica roja
+ *   que nace del sitio y cae por el borde del mapa con la etiqueta "NO DTE LINK".
  */
 export const EarthVector: React.FC<EarthVectorProps> = ({
   selectedSite: selectedSiteProp,
@@ -46,6 +50,8 @@ export const EarthVector: React.FC<EarthVectorProps> = ({
   gapSize = 0.8,
   flowSpeed = 2,
   visible = true,
+  isConnected = true,
+  disconnectedLabel = "NO DTE LINK",
 }) => {
   const { selectedSite: contextSite } = useSiteContext();
   const activeSite = selectedSiteProp !== undefined ? selectedSiteProp : contextSite;
@@ -87,7 +93,99 @@ export const EarthVector: React.FC<EarthVectorProps> = ({
     if (mat && flowSpeed) mat.dashOffset -= delta * flowSpeed;
   });
 
-  if (!visible || length === 0) return null;
+  // Cálculo de la parábola roja cuando NO hay comunicación con la Tierra:
+  // Parte del origen dinámico, se eleva suavemente y decae curvándose hacia el borde del terreno
+  const disconnectedTrajectory = useMemo(() => {
+    if (isConnected) return null;
+
+    const s = new THREE.Vector3(...dynamicOrigin);
+    // Dirección horizontal hacia el borde del mapa
+    let horizontalDir = new THREE.Vector2(s.x, s.z);
+    if (horizontalDir.lengthSq() < 1e-4) {
+      horizontalDir = new THREE.Vector2(0, 1);
+    } else {
+      horizontalDir.normalize();
+    }
+
+    // Si hay targetDirection con componente horizontal, dirigir la caída en esa dirección hacia el horizonte
+    const targetH = new THREE.Vector2(targetDirection[0], targetDirection[2]);
+    if (targetH.lengthSq() > 1e-4) {
+      horizontalDir = targetH.normalize();
+    }
+
+    const halfSpan = (terrainSize / 2) * 1.05;
+    // Distancia hasta caer por el borde exterior
+    const distanceToEdge = Math.max(22, halfSpan - Math.hypot(s.x, s.z) + 12);
+
+    const points: [number, number, number][] = [];
+    const segments = 36;
+    const apexHeight = 5.5; // Cúspide de la parábola sobre el terreno
+    const fallDepth = -16.0; // Caída por debajo del faldón del pedestal
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const x = s.x + horizontalDir.x * distanceToEdge * t;
+      const z = s.z + horizontalDir.y * distanceToEdge * t;
+      // Curva parabólica: elevación inicial que decae fuertemente al acercarse al borde
+      const y = s.y + apexHeight * 4 * t * (1 - t * 1.35) + fallDepth * Math.pow(t, 2.8);
+      points.push([x, y, z]);
+    }
+
+    // Posición del tag flotante en el tercio superior de la trayectoria parabólica
+    const labelIdx = Math.floor(segments * 0.35);
+    const labelVector = new THREE.Vector3(...points[labelIdx]);
+
+    return { points, labelVector, endPoint: points[points.length - 1] };
+  }, [isConnected, dynamicOrigin, targetDirection, terrainSize]);
+
+  if (!visible) return null;
+
+  // CASO A: Sin comunicación directa con la Tierra (Parábola roja descendente con tag de alerta)
+  if (!isConnected) {
+    if (!disconnectedTrajectory) return null;
+    const { points, labelVector } = disconnectedTrajectory;
+
+    return (
+      <group>
+        <Line
+          ref={lineRef}
+          points={points}
+          color="#FB7185"
+          lineWidth={lineWidth * 1.15}
+          dashed
+          dashSize={dashSize * 0.9}
+          gapSize={gapSize * 0.9}
+          transparent
+          opacity={0.92}
+          toneMapped={false}
+        />
+
+        {/* Nodo de origen en el sitio */}
+        <mesh position={start}>
+          <sphereGeometry args={[0.26, 16, 16]} />
+          <meshBasicMaterial color="#FB7185" toneMapped={false} />
+        </mesh>
+
+        {/* Tag de alerta roja "NO DTE LINK / NO DIRECT COMMUNICATION" */}
+        <Html
+          position={labelVector}
+          center
+          zIndexRange={[5, 0]}
+          style={{ pointerEvents: "none" }}
+        >
+          <div className="flex items-center gap-1.5 whitespace-nowrap px-2.5 py-0.5 rounded-full bg-[#0D0D0D]/95 border border-[#FB7185]/70 backdrop-blur-md shadow-[0_0_16px_rgba(251,113,133,0.5)] select-none pointer-events-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#FB7185] shadow-[0_0_8px_#FB7185] animate-pulse inline-block" />
+            <span className="font-heading font-bold text-[10.5px] tracking-wider uppercase text-[#FB7185]">
+              {disconnectedLabel}
+            </span>
+          </div>
+        </Html>
+      </group>
+    );
+  }
+
+  // CASO B: Enlace activo y visible hacia la Tierra
+  if (length === 0) return null;
 
   return (
     <group>

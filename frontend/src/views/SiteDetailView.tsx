@@ -682,11 +682,13 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 pedestalColor: "#0D0D0D", // palette-obsidian oficial
                 focusRadius: 15.0,
                 cutoutShape: "square",
-                position: [0, -18, 0], // Bloque posicionado bajo la cota de flotación
+                position: [0, -8, 0], // Subido en el eje Y para centrar el relieve sobre la cota de flotación
                 rotation: [0, Math.PI / 4, 0], // Orientación isométrica en diamante a 45°
               }}
               earth={{
-                visible: activeLayers.earth && (selectedPoint?.is_earth_visible ?? true),
+                visible: activeLayers.earth,
+                isConnected: Boolean(selectedPoint?.is_earth_visible),
+                disconnectedLabel: "NO DTE LINK",
                 targetDirection: earthDirection,
                 color: "#38BDF8", // Azul táctico Direct-to-Earth
               }}
@@ -698,16 +700,16 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 gridColor: "#3B3B40",   // palette-charcoal oficial
               }}
               camera={{
-                initialPosition: [32, 14, 51.2],
-                target: [4.8, -4.5, -7.7],
-                overviewPosition: [48, 42, 88],
-                overviewTarget: [0, -14, 0],
+                initialPosition: [36, 26, 80],
+                target: [0, -6, 0],
+                overviewPosition: [42, 23, 92],
+                overviewTarget: [0, -7, 0],
                 fov: 38,
                 flyOffset: [27.2, 21.0, 58.9],
-                targetOffset: [0, 4.5, 0], // Desplaza el punto focal sobre el terreno para que el diorama comience casi tocando el borde inferior
+                targetOffset: [0, 1.5, 0],
                 lerpFactor: 0.06,
                 minDistance: 30,
-                maxDistance: 180,
+                maxDistance: 190,
               }}
               showStars={false}
               showDebugHud={false}
@@ -778,7 +780,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           title="Site criteria thresholds"
           items={sliderItems}
           onChange={handleCriterionChange}
-          className="w-full shrink-0 min-h-[clamp(135px,18vh,160px)] pointer-events-auto"
+          className="w-fit self-start min-w-[clamp(240px,18.5vw,290px)] shrink-0 min-h-[clamp(135px,18vh,160px)] pointer-events-auto"
         />
 
         <CriteriaKpiCard
@@ -788,7 +790,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           statusTier={currentStatusTier}
           badgeText={`${metCriteriaCount}/2`}
           subtitle={`${metCriteriaCount} of 2 period-summary thresholds met`}
-          className="w-fit self-start shrink-0 min-h-[clamp(58px,8vh,72px)] pointer-events-auto"
+          className="w-fit self-start min-w-[clamp(200px,16vw,240px)] shrink-0 min-h-[clamp(58px,8vh,72px)] pointer-events-auto"
         />
 
         {timelineError && (
@@ -1044,19 +1046,19 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
               type="button"
               onClick={() => {
                 if (isOverview) {
-                  triggerMinimapShake();
+                  setFlightId((n) => n + 1);
                 } else {
                   handleToggleOverview();
                 }
               }}
               title={
                 isOverview
-                  ? "Overview map already active"
+                  ? "Reset default overview camera"
                   : "Click to view South Pole overview map"
               }
               aria-label={
                 isOverview
-                  ? "Overview map active"
+                  ? "Reset default overview camera"
                   : "Switch to South Pole overview map"
               }
               className={`group flex items-center gap-2 px-[clamp(0.55rem,0.85vw,0.75rem)] py-[clamp(0.25rem,0.5vh,0.35rem)] rounded-full bg-palette-obsidian/85 hover:bg-palette-charcoal/85 border border-palette-slate/40 hover:border-palette-cream/40 transition-all duration-200 backdrop-blur-md cursor-pointer shadow-[0_2px_10px_rgba(0,0,0,0.55)] focus:outline-none ${
@@ -1074,15 +1076,15 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 {isOverview ? "OVERVIEW MAP" : "SITE DETAIL"}
               </span>
               <span className="font-sans text-[clamp(9px,0.95vh,10.5px)] text-palette-slate group-hover:text-palette-cream transition-colors">
-                {isOverview ? "· Overview Active" : "· Click: Overview ↗"}
+                {isOverview ? "· Reset View ⟲" : "· Click: Overview ↗"}
               </span>
             </button>
 
-            {/* Minimapa polar interactivo: en modo detalle permite cambiar a general; en modo general vibra indicando que ya está en la vista general del mapa */}
+            {/* Minimapa polar interactivo: en modo detalle cambia a general; en general restablece la perspectiva por defecto */}
             <div
               onClick={() => {
                 if (isOverview) {
-                  triggerMinimapShake();
+                  setFlightId((n) => n + 1);
                 } else {
                   handleToggleOverview();
                 }
@@ -1093,7 +1095,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   if (isOverview) {
-                    triggerMinimapShake();
+                    setFlightId((n) => n + 1);
                   } else {
                     handleToggleOverview();
                   }
@@ -1101,12 +1103,12 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
               }}
               title={
                 isOverview
-                  ? "Overview map already active"
+                  ? "Reset default overview camera"
                   : "Click map to view overview map"
               }
               aria-label={
                 isOverview
-                  ? "Overview map active"
+                  ? "Reset default overview camera"
                   : "Switch to overview map"
               }
               className={`relative cursor-pointer group rounded-full transition-transform duration-200 focus:outline-none focus:ring-2 focus:ring-palette-cream/40 w-[clamp(170px,26vh,100%)] max-w-full aspect-square ${
@@ -1130,7 +1132,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
             actionLabel="see more"
             rows={rightGridRows}
             expandedRows={rightGridExpandedRows}
-            className="w-full shrink min-h-0"
+            className="w-fit self-end shrink-0 min-h-0"
           />
 
           <CriteriaDaysKpiCard

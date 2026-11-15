@@ -787,16 +787,16 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
         </button>
 
         {/* Card Superior Izquierda: Criterios cumplidos (2 Sliders: Sol + Tierra) con separación suficiente respecto al botón */}
-        <aside className="absolute left-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] z-20 flex flex-col gap-3 pointer-events-none">
+        <aside className="absolute left-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] z-20 flex flex-col gap-3 pointer-events-none items-start">
           <CriteriaSlidersCard
             title="Fulfilled criteria"
             items={sliderItems}
             onChange={handleCriterionChange}
-            className="w-[clamp(270px,23vw,330px)] pointer-events-auto"
+            className="w-fit min-w-[clamp(240px,20vw,290px)] pointer-events-auto"
           />
 
           {/* Card de Leyenda de Indicadores (Globo 3D) */}
-          <MapLegendCard mode="picker" className="w-[clamp(270px,23vw,330px)] pointer-events-auto" />
+          <MapLegendCard mode="picker" className="w-fit min-w-[clamp(240px,20vw,290px)] pointer-events-auto" />
         </aside>
 
         {/* Card Superior Derecha: Listado Clasificado de Sitios Candidatos */}

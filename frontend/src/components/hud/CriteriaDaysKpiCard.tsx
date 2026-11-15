@@ -34,13 +34,12 @@ export const CriteriaDaysKpiCard: React.FC<CriteriaDaysKpiCardProps> = ({
       variant="slate"
       padding="md"
       ariaLabel={title}
-      className={`justify-between gap-[clamp(0.1rem,0.4vh,0.35rem)] ${className}`}
+      className={`justify-between gap-[clamp(0.2rem,0.5vh,0.45rem)] ${className}`}
     >
       <HudCardHeader
         title={title}
-        subtitle={subtitle}
         align={align}
-        size="lg"
+        size="md"
       />
 
       <div className={`flex items-baseline gap-[0.4vw] pt-[0.1vh] w-auto ${justifyClass}`}>
@@ -53,6 +52,12 @@ export const CriteriaDaysKpiCard: React.FC<CriteriaDaysKpiCardProps> = ({
           </span>
         )}
       </div>
+
+      {subtitle && (
+        <p className="font-sans font-light text-[clamp(0.65rem,1.15vh,0.72rem)] leading-[1.3] text-[#D9CEC5]/80 text-left pt-[0.2vh] w-full">
+          {subtitle}
+        </p>
+      )}
     </HudCard>
   );
 };

@@ -47,9 +47,8 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
   site,
   flightId,
   offset = [6, 8, 10],
-  lerpFactor = 0.06,
-  overviewCamera = [48, 42, 88],
-  overviewTarget = [0, -14, 0],
+  overviewCamera = [42, 23, 92],
+  overviewTarget = [0, -7, 0],
   terrainRotation,
   terrainPosition,
   targetOffset,
@@ -133,8 +132,8 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
       const startPos = state.camera.position.clone();
       const startTarget = controls.target.clone();
       const dist = startPos.distanceTo(goal.camera);
-      // Duración calculada dinámicamente según la distancia (mínimo 900ms, máximo 1300ms)
-      const duration = Math.min(1300, Math.max(900, dist * 12));
+      // Duración calculada dinámicamente según la distancia (mínimo 1000ms, máximo 1300ms)
+      const duration = Math.min(1300, Math.max(1000, dist * 14));
 
       animRef.current = {
         startTime: performance.now(),

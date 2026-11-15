@@ -86,6 +86,8 @@ export interface EarthConfig {
   targetDirection?: [number, number, number];
   color?: string;
   label?: string;
+  isConnected?: boolean;
+  disconnectedLabel?: string;
 }
 
 /** Capa de datos holográfica flotante */
@@ -219,10 +221,10 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
   const displacementBias = terrain?.displacementBias ?? TERRAIN.displacementBias;
   const terrainRotation: [number, number, number] = terrain?.rotation ?? [0, 0, 0];
   const terrainPosition: [number, number, number] = terrain?.position ?? [0, 0, 0];
-  const camTarget: [number, number, number] = camera?.target ?? [0, -10, 0];
+  const camTarget: [number, number, number] = camera?.target ?? [4.8, -4.5, -7.7];
   const initialCamPos: [number, number, number] = camera?.initialPosition ?? [32, 14, 51.2];
-  const overviewCamPos: [number, number, number] = camera?.overviewPosition ?? [48, 42, 88];
-  const overviewCamTarget: [number, number, number] = camera?.overviewTarget ?? [0, -14, 0];
+  const overviewCamPos: [number, number, number] = camera?.overviewPosition ?? [42, 23, 92];
+  const overviewCamTarget: [number, number, number] = camera?.overviewTarget ?? [0, -7, 0];
 
   // Si activeSite es null (vista general), inicializa la cámara en la perspectiva general elevada
   const canvasCamPos = activeSite ? initialCamPos : overviewCamPos;
@@ -281,6 +283,8 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
               terrainSize={terrainSize}
               color={earth?.color ?? "#38BDF8"}
               label={earth?.label ?? "EARTH"}
+              isConnected={earth?.isConnected ?? true}
+              disconnectedLabel={earth?.disconnectedLabel ?? "NO DTE LINK"}
             />
 
             <LunarSurface
@@ -323,8 +327,9 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
               <SiteMarkers
                 sites={sites}
                 selectedId={activeSite?.id}
+                isOverview={!activeSite}
                 visible={markers?.visible ?? true}
-                poleHeight={markers?.poleHeight ?? 2}
+                poleHeight={markers?.poleHeight ?? 2.5}
                 onSelectSite={onSelectSite}
               />
             </LunarSurface>
