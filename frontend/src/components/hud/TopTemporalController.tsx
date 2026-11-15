@@ -278,6 +278,12 @@ export interface TopTemporalControllerProps {
   /** Hora del día en formato decimal (0 a 24) */
   hour: number;
   onChangeHour: (newHour: number) => void;
+  /** Opcional: índice de muestra cuando el reloj recorre un timeline precalculado. */
+  value?: number;
+  min?: number;
+  max?: number;
+  onChangeValue?: (newValue: number) => void;
+  formatValue?: (value: number) => string;
   /** Fecha ISO seleccionada (ej. "2026-11-18") */
   dateIso: string;
   onChangeDate: (newDateIso: string) => void;
@@ -289,6 +295,11 @@ export interface TopTemporalControllerProps {
 export const TopTemporalController: React.FC<TopTemporalControllerProps> = ({
   hour,
   onChangeHour,
+  value,
+  min = 0,
+  max = 24,
+  onChangeValue,
+  formatValue,
   dateIso,
   onChangeDate,
   telemetryBadge,
@@ -299,8 +310,12 @@ export const TopTemporalController: React.FC<TopTemporalControllerProps> = ({
       className={`flex flex-col items-center pointer-events-none ${className}`}
     >
       <TemporalRulerSlider
-        value={hour}
-        onChange={onChangeHour}
+        value={value ?? hour}
+        min={value === undefined ? 0 : min}
+        max={value === undefined ? 24 : max}
+        step={value === undefined ? 0.1 : 1}
+        onChange={value === undefined ? onChangeHour : onChangeValue ?? onChangeHour}
+        formatValue={formatValue ?? formatHourUtc}
         telemetryBadge={telemetryBadge}
       />
 

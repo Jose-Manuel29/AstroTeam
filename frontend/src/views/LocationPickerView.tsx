@@ -5,7 +5,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import { MoonGlobe } from "../components/3d_canvas/MoonGlobe";
-import { CANDIDATE_LANDING_SITES } from "../data/landingSites";
 import { LandingSite } from "../types";
 import { FigmaDiamondShadow } from "../components/ui/FigmaDiamondShadow";
 import { FigmaLandingButton } from "../components/ui/FigmaLandingButton";
@@ -20,9 +19,11 @@ import {
 export type ExplorerPhase = "landing" | "transitioning" | "picker" | "detail";
 
 export interface LocationPickerViewProps {
+  sites: LandingSite[];
+  selectedSiteId: string;
   initialPhase?: ExplorerPhase;
   isDetailActive?: boolean;
-  onSelectSiteDetail?: (siteSlug: string) => void;
+  onSelectSiteDetail?: (siteId: string) => void;
   onDetailMoonArrived?: () => void;
   onBackToPicker?: () => void;
 }
@@ -500,6 +501,8 @@ const SceneDirector: React.FC<SceneDirectorProps> = ({
 };
 
 export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
+  sites,
+  selectedSiteId: propSelectedSiteId,
   initialPhase = "landing",
   isDetailActive = false,
   onSelectSiteDetail,
@@ -517,23 +520,26 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
   }, [isDetailActive, phase]);
 
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(
-    CANDIDATE_LANDING_SITES[0]?.id || null
+    propSelectedSiteId
   );
+
+  useEffect(() => {
+    setSelectedSiteId(propSelectedSiteId);
+  }, [propSelectedSiteId]);
 
   const hourOfDay = 12.0;
 
-  // Estado de los 3 sliders de criterios (Card Superior Izquierda)
+  // Los porcentajes son resúmenes del catálogo para el periodo precalculado.
   const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>({
-    illumination: 68,
-    slope: 42,
-    earthLink: 83,
+    illumination: 50,
+    earthLink: 50,
   });
 
   const sliderItems: CriterionSliderItem[] = useMemo(
     () => [
       {
         id: "illumination",
-        label: "Zona de aterrizaje viable ↑",
+        label: "Visibilidad solar mínima",
         value: criteriaValues.illumination,
         min: 0,
         max: 100,
@@ -541,17 +547,8 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
         unit: "%",
       },
       {
-        id: "slope",
-        label: "Tolerancia de pendiente ↑",
-        value: criteriaValues.slope,
-        min: 0,
-        max: 100,
-        step: 1,
-        unit: "%",
-      },
-      {
         id: "earthLink",
-        label: "Ventana de enlace DTE ↑",
+        label: "Visibilidad de Tierra mínima",
         value: criteriaValues.earthLink,
         min: 0,
         max: 100,
@@ -569,27 +566,21 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
     }));
   };
 
-  // Filtrado y evaluación de viabilidad de los sitios candidatos según los sliders
+  // Clasifica los sitios usando únicamente los porcentajes proporcionados por la API.
   const filteredSites: EvaluatedLandingSite[] = useMemo(() => {
-    const minIllum = Math.round(45 + (criteriaValues.illumination / 100) * 40);
-    const maxSlope = 6 + (criteriaValues.slope / 100) * 14;
-    const minDte = Math.round(50 + (criteriaValues.earthLink / 100) * 40);
-
-    return CANDIDATE_LANDING_SITES.map((site) => {
-      const meetsIllum = site.illuminationAvgPercent >= minIllum;
-      const meetsSlope = site.slopeDegrees <= maxSlope;
-      const meetsDte = site.earthVisibilityPercent >= minDte;
-
-      const criteriaMetCount = (meetsIllum ? 1 : 0) + (meetsSlope ? 1 : 0) + (meetsDte ? 1 : 0);
+    return sites.map((site) => {
+      const meetsIllum = site.illuminationAvgPercent >= criteriaValues.illumination;
+      const meetsDte = site.earthVisibilityPercent >= criteriaValues.earthLink;
+      const criteriaMetCount = (meetsIllum ? 1 : 0) + (meetsDte ? 1 : 0);
 
       const viabilityTier: "optimal" | "marginal" | "critical" =
-        criteriaMetCount === 3
+        criteriaMetCount === 2
           ? "optimal"
-          : criteriaMetCount === 2
+          : criteriaMetCount === 1
           ? "marginal"
           : "critical";
 
-      const isViable = criteriaMetCount >= 2;
+      const isViable = criteriaMetCount === 2;
 
       return {
         ...site,
@@ -598,7 +589,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
         criteriaMetCount,
       };
     });
-  }, [criteriaValues]);
+  }, [criteriaValues, sites]);
 
   const selectedSite = useMemo(
     () =>
@@ -611,7 +602,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
   const handleExploreTerrain = (site: LandingSite) => {
     setSelectedSiteId(site.id);
     setPhase("detail");
-    onSelectSiteDetail?.(site.slug);
+    onSelectSiteDetail?.(site.id);
   };
 
   const handleSelectSiteOnGlobe = (site: LandingSite) => {
@@ -805,7 +796,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
         {/* Card Superior Izquierda: Criterios cumplidos (3 Sliders) con separación suficiente respecto al botón */}
         <aside className="absolute left-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] z-20 flex flex-col gap-3 pointer-events-none">
           <CriteriaSlidersCard
-            title="Criterios cumplidos"
+            title="Umbrales del catálogo"
             items={sliderItems}
             onChange={handleCriterionChange}
             className="w-[clamp(270px,23vw,330px)] pointer-events-auto"
@@ -818,7 +809,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
         {/* Card Superior Derecha: Listado Clasificado de Sitios Candidatos */}
         <aside className="absolute right-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] z-20 pointer-events-none">
           <CandidateSitesListCard
-            title="Criterios cumplidos"
+            title="Coincidencia con criterios"
             sites={filteredSites}
             selectedSiteId={selectedSiteId}
             onSelectSite={(site) => setSelectedSiteId(site.id)}

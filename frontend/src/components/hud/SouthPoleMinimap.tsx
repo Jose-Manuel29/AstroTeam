@@ -1,27 +1,25 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { CANDIDATE_LANDING_SITES } from "../../data/landingSites";
+import type { LandingSite } from "../../types";
 
 export interface SouthPoleMinimapProps {
-  currentSiteSlug?: string;
-  onSelectSite?: (slug: string) => void;
+  sites: LandingSite[];
+  currentSiteId: string;
+  onSelectSite?: (siteId: string) => void;
   size?: number;
   className?: string;
   isOverview?: boolean;
 }
 
-/**
- * Coordenadas de calibración (en un canvas base de 210x210 px)
- * para los sitios de aterrizaje candidatos en la proyección polar estereográfica.
- * 'shackleton-connecting-ridge' coincide exactamente con la especificación de diseño Figma (x: 78, y: 79).
- */
-const SITE_MAP_COORDINATES: Record<string, { x: number; y: number }> = {
-  "shackleton-connecting-ridge": { x: 78, y: 79 },
-  "faustini-rim-a": { x: 132, y: 64 },
-  "amundsen-rim": { x: 154, y: 92 },
-  "peak-near-cabeus-b": { x: 72, y: 146 },
-};
+function projectSite(site: LandingSite): { x: number; y: number } {
+  const radius = Math.min(7, Math.max(0, 90 + site.coordinates.lat)) / 7 * 78;
+  const longitude = (site.coordinates.lng * Math.PI) / 180;
+  return {
+    x: 105 + radius * Math.sin(longitude),
+    y: 105 - radius * Math.cos(longitude),
+  };
+}
 
 /**
  * Componente SouthPoleMinimap (Radar Polar de Orientación)
@@ -33,7 +31,8 @@ const SITE_MAP_COORDINATES: Record<string, { x: number; y: number }> = {
  * Totalmente adaptativo a la altura y ancho del viewport con porcentajes y clamps relativos.
  */
 export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
-  currentSiteSlug = "shackleton-connecting-ridge",
+  sites,
+  currentSiteId,
   onSelectSite,
   size,
   className = "w-full h-full aspect-square",
@@ -45,11 +44,9 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
 
   // Coordenadas del sitio activo en porcentaje (%)
   const activeCoord = useMemo(() => {
-    return (
-      SITE_MAP_COORDINATES[currentSiteSlug] ||
-      SITE_MAP_COORDINATES["shackleton-connecting-ridge"]
-    );
-  }, [currentSiteSlug]);
+    const activeSite = sites.find((site) => site.id === currentSiteId) ?? sites[0];
+    return activeSite ? projectSite(activeSite) : { x: 105, y: 105 };
+  }, [sites, currentSiteId]);
 
   const targetXPct = (activeCoord.x / 210) * 100;
   const targetYPct = (activeCoord.y / 210) * 100;
@@ -133,13 +130,11 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
       />
 
       {/* 6. PUNTOS DE SITIOS CANDIDATOS (Marcadores polares interactivos en %) */}
-      {CANDIDATE_LANDING_SITES.map((site) => {
-        const coord = SITE_MAP_COORDINATES[site.slug];
-        if (!coord) return null;
-
+      {sites.map((site) => {
+        const coord = projectSite(site);
         const posXPct = (coord.x / 210) * 100;
         const posYPct = (coord.y / 210) * 100;
-        const isActive = !isOverview && site.slug === currentSiteSlug;
+        const isActive = !isOverview && site.id === currentSiteId;
 
         return (
           <button
@@ -147,7 +142,7 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onSelectSite?.(site.slug);
+              onSelectSite?.(site.id);
             }}
             title={`${site.name} (${Math.abs(site.coordinates.lat)}°S, ${site.coordinates.lng}°E)`}
             className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform duration-300 z-30 group cursor-pointer focus:outline-none ${

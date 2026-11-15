@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CaretDown, CheckCircle, WarningCircle, XCircle, Sun, Mountains, Broadcast } from "@phosphor-icons/react";
+import { CaretDown, CheckCircle, WarningCircle, XCircle, Sun, Broadcast } from "@phosphor-icons/react";
 import { HudCard, HudCardHeader, HudCardBody } from "./HudCard";
 import { LandingSite } from "../../types";
 
@@ -48,21 +48,21 @@ export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
         return (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-sans font-medium text-emerald-400">
             <CheckCircle size={14} weight="fill" className="text-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-            Óptimo
+            Cumple ambos
           </span>
         );
       case "marginal":
         return (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-sans font-medium text-amber-400">
             <WarningCircle size={14} weight="fill" className="text-amber-400 shrink-0 shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
-            Marginal
+            Cumple uno
           </span>
         );
       case "critical":
         return (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-sans font-medium text-rose-400">
             <XCircle size={14} weight="fill" className="text-rose-400 shrink-0 shadow-[0_0_6px_rgba(251,113,133,0.6)]" />
-            Crítico
+            No cumple
           </span>
         );
     }
@@ -77,7 +77,7 @@ export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
     >
       <HudCardHeader
         title={title}
-        subtitle={`${optimalSites.length} viables · ${marginalSites.length} marginales · ${criticalSites.length} críticos`}
+        subtitle={`${optimalSites.length} cumplen ambos · ${marginalSites.length} uno · ${criticalSites.length} ninguno`}
         align="left"
         size="md"
       />
@@ -85,14 +85,14 @@ export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
       {/* Selector de estatus con dropdown */}
       <div className="flex items-center justify-between gap-2 px-1 py-0.5 border-b border-white/10 pb-2">
         <label
-          htmlFor="viability-filter-select"
+          htmlFor="criteria-match-filter-select"
           className="font-heading font-medium text-[11px] uppercase tracking-wider text-palette-cream/80"
         >
           Filtrar por estatus:
         </label>
         <div className="relative">
           <select
-            id="viability-filter-select"
+            id="criteria-match-filter-select"
             value={filterTab}
             onChange={(e) => setFilterTab(e.target.value as "all" | ViabilityTier)}
             className="appearance-none bg-palette-charcoal/80 hover:bg-palette-charcoal text-[#FAFAFA] font-sans text-[11.5px] font-medium pl-3 pr-7 py-1 rounded-lg border border-white/15 focus:outline-none focus:border-palette-cream/40 cursor-pointer backdrop-blur-sm transition-colors"
@@ -101,13 +101,13 @@ export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
               Todos ({sites.length})
             </option>
             <option value="optimal" className="bg-[#141416] text-emerald-400">
-              Óptimo ({optimalSites.length})
+              Cumple ambos ({optimalSites.length})
             </option>
             <option value="marginal" className="bg-[#141416] text-amber-400">
-              Marginal ({marginalSites.length})
+              Cumple uno ({marginalSites.length})
             </option>
             <option value="critical" className="bg-[#141416] text-rose-400">
-              Crítico ({criticalSites.length})
+              No cumple ({criticalSites.length})
             </option>
           </select>
           <CaretDown
@@ -144,16 +144,12 @@ export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
               </div>
 
               {/* Métricas clave en miniatura */}
-              <div className="grid grid-cols-3 gap-1.5 text-[11px] font-sans text-palette-cream/80 pt-0.5 border-t border-white/5">
-                <span className="flex items-center gap-1 truncate" title="Iluminación solar promedio">
+              <div className="grid grid-cols-2 gap-1.5 text-[11px] font-sans text-palette-cream/80 pt-0.5 border-t border-white/5">
+                <span className="flex items-center gap-1 truncate" title="Porcentaje de muestras con el centro del Sol visible">
                   <Sun size={12} className="text-amber-400 shrink-0" />
                   {site.illuminationAvgPercent}%
                 </span>
-                <span className="flex items-center gap-1 truncate" title="Pendiente del terreno">
-                  <Mountains size={12} className="text-palette-slate shrink-0" />
-                  {site.slopeDegrees}°
-                </span>
-                <span className="flex items-center gap-1 truncate" title="Enlace directo a Tierra">
+                <span className="flex items-center gap-1 truncate" title="Porcentaje de muestras con visibilidad directa a la Tierra">
                   <Broadcast size={12} className="text-palette-cream shrink-0" />
                   {site.earthVisibilityPercent}%
                 </span>

@@ -4,6 +4,7 @@ import { HudCard, HudCardHeader, HudCardBody } from "./HudCard";
 
 export interface MapLegendCardProps {
   title?: string;
+  showCriteria?: boolean;
   className?: string;
 }
 
@@ -13,6 +14,7 @@ export interface MapLegendCardProps {
  */
 export const MapLegendCard: React.FC<MapLegendCardProps> = ({
   title = "Simbología e Indicadores",
+  showCriteria = true,
   className = "w-[clamp(260px,22vw,320px)]",
 }) => {
   return (
@@ -29,29 +31,30 @@ export const MapLegendCard: React.FC<MapLegendCardProps> = ({
       />
 
       <HudCardBody className="gap-[clamp(0.25rem,0.65vh,0.55rem)] text-[clamp(0.68rem,1.1vh,0.75rem)] font-sans">
-        {/* Sección: Estados de viabilidad de sitios con iconos */}
-        <div className="flex flex-col gap-1.5 pt-0.5 border-b border-white/10 pb-2">
-          <span className="font-heading font-bold uppercase tracking-wider text-[clamp(0.58rem,0.95vh,0.66rem)] text-palette-cream/80">
-            Estado de Sitios Candidatos
-          </span>
-          <div className="grid grid-cols-1 gap-1.5">
-            <div className="flex items-center gap-2">
-              <CheckCircle size={14} weight="fill" className="text-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-              <span className="font-medium text-[#FAFAFA]">Viable / Óptimo</span>
-              <span className="text-palette-cream/70 text-[0.9em] ml-auto">Cumple 3 criterios</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <WarningCircle size={14} weight="fill" className="text-amber-400 shrink-0 shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
-              <span className="font-medium text-[#FAFAFA]">Marginal</span>
-              <span className="text-palette-cream/70 text-[0.9em] ml-auto">Cumple 2 criterios</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <XCircle size={14} weight="fill" className="text-rose-400 shrink-0 shadow-[0_0_6px_rgba(251,113,133,0.6)]" />
-              <span className="font-medium text-[#FAFAFA]">Crítico / No viable</span>
-              <span className="text-palette-cream/70 text-[0.9em] ml-auto">&lt; 2 criterios</span>
+        {showCriteria && (
+          <div className="flex flex-col gap-1.5 pt-0.5 border-b border-white/10 pb-2">
+            <span className="font-heading font-bold uppercase tracking-wider text-[clamp(0.58rem,0.95vh,0.66rem)] text-palette-cream/80">
+              Coincidencia con criterios
+            </span>
+            <div className="grid grid-cols-1 gap-1.5">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={14} weight="fill" className="text-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+                <span className="font-medium text-[#FAFAFA]">Cumple ambos</span>
+                <span className="text-palette-cream/70 text-[0.9em] ml-auto">2 límites</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <WarningCircle size={14} weight="fill" className="text-amber-400 shrink-0 shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
+                <span className="font-medium text-[#FAFAFA]">Cumple uno</span>
+                <span className="text-palette-cream/70 text-[0.9em] ml-auto">1 límite</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <XCircle size={14} weight="fill" className="text-rose-400 shrink-0 shadow-[0_0_6px_rgba(251,113,133,0.6)]" />
+                <span className="font-medium text-[#FAFAFA]">No cumple</span>
+                <span className="text-palette-cream/70 text-[0.9em] ml-auto">0 límites</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Sección: Indicadores espaciales en el globo */}
         <div className="flex flex-col gap-1.5 pt-0.5">

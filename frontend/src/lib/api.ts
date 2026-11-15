@@ -34,6 +34,16 @@ export interface SiteTimeline {
   points: TimelinePoint[];
 }
 
+export interface LibrationData {
+  sub_earth_lat: number;
+  sub_earth_lon: number;
+  sub_solar_lat: number;
+  sub_solar_lon: number;
+  earth_distance_km: number;
+  sun_distance_au: number;
+  earth_phase_angle_deg: number;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -103,6 +113,19 @@ function isTimelinePoint(value: unknown): value is TimelinePoint {
   );
 }
 
+function isLibrationData(value: unknown): value is LibrationData {
+  return (
+    isRecord(value) &&
+    isFiniteNumber(value.sub_earth_lat) &&
+    isFiniteNumber(value.sub_earth_lon) &&
+    isFiniteNumber(value.sub_solar_lat) &&
+    isFiniteNumber(value.sub_solar_lon) &&
+    isFiniteNumber(value.earth_distance_km) &&
+    isFiniteNumber(value.sun_distance_au) &&
+    isFiniteNumber(value.earth_phase_angle_deg)
+  );
+}
+
 async function loadSites(): Promise<LandingSite[]> {
   const payload = await requestJson("/api/sites");
   if (!isRecord(payload) || !Array.isArray(payload.sites) || !payload.sites.every(isApiSite)) {
@@ -165,4 +188,13 @@ export function fetchSiteTimeline(siteId: string): Promise<SiteTimeline> {
   });
   siteTimelineRequests.set(siteId, request);
   return request;
+}
+
+export async function fetchLibration(timestampUtc: string): Promise<LibrationData> {
+  const query = new URLSearchParams({ timestamp_utc: timestampUtc });
+  const payload = await requestJson(`/api/libration?${query.toString()}`);
+  if (!isLibrationData(payload)) {
+    throw new Error("La respuesta de /api/libration no coincide con el contrato esperado.");
+  }
+  return payload;
 }
