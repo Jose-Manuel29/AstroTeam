@@ -3,6 +3,8 @@
 import React, { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { MoonGlobe } from "../components/3d_canvas/MoonGlobe";
+import { FigmaDiamondShadow } from "../components/ui/FigmaDiamondShadow";
+import { FigmaLandingButton } from "../components/ui/FigmaLandingButton";
 
 export interface LandingViewProps {
   onEnterExplorer?: () => void;
@@ -17,13 +19,37 @@ export interface LandingViewProps {
 export const LandingView: React.FC<LandingViewProps> = ({ onEnterExplorer }) => {
   return (
     <main
-      className="relative min-h-screen w-full flex flex-col justify-between bg-[#05070B] bg-cover bg-center bg-no-repeat text-slate-100 overflow-hidden px-6 py-8 md:px-16 md:py-10"
-      style={{ backgroundImage: "url('/images/bg_start_.webp')" }}
+      className="relative h-screen w-full bg-[#09080C] bg-cover bg-no-repeat text-[#FFFFFF] overflow-hidden select-none"
+      style={{
+        backgroundImage: "url('/images/bg_start_.webp')",
+        backgroundPosition: "center calc(50% + 2rem)",
+      }}
     >
-      {/* Viñeta sutil para oscurecer bordes y destacar el horizonte lunar */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_95%,rgba(56,189,248,0.12),rgba(5,7,11,0.65)_70%)] pointer-events-none z-0" />
+      {/* Definición global del filtro SVG de refracción óptica (Liquid Glass) */}
+      <svg className="absolute w-0 h-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <defs>
+          <filter id="liquid-glass-refraction" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.025"
+              numOctaves="2"
+              seed="4"
+              result="noise"
+            />
+            <feGaussianBlur in="noise" stdDeviation="2.5" result="smoothNoise" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="smoothNoise"
+              scale="14"
+              xChannelSelector="R"
+              yChannelSelector="G"
+              result="refraction"
+            />
+          </filter>
+        </defs>
+      </svg>
 
-      {/* Escena 3D de la Luna en el horizonte inferior */}
+      {/* Escena 3D de la Luna en el horizonte inferior con la perspectiva de Figma */}
       <div className="absolute inset-0 z-[1] pointer-events-none">
         <Canvas
           gl={{ alpha: true, antialias: true }}
@@ -34,68 +60,77 @@ export const LandingView: React.FC<LandingViewProps> = ({ onEnterExplorer }) => 
             far: 100,
           }}
         >
-          {/* Luz ambiental mínima para sombras profundas como en el espacio */}
-          <ambientLight intensity={0.03} />
+          <ambientLight intensity={0.012} />
 
-          {/* Luz principal cenital/frontal iluminando la cresta superior de la Luna */}
           <directionalLight
-            position={[0, 6.5, 1.5]}
-            intensity={2.8}
+            position={[0, 4.8, 1.8]}
+            intensity={1.05}
             color="#f8fafc"
           />
 
-          {/* Contraluz sutil en el limbo superior para definir el arco del horizonte */}
           <directionalLight
-            position={[0, 5.5, -2.5]}
-            intensity={1.5}
-            color="#7dd3fc"
+            position={[0, 5.2, -2.5]}
+            intensity={0.12}
+            color="#d4d2da"
           />
 
           <Suspense fallback={null}>
             <MoonGlobe
-              position={[0, -2.53, 0]}
-              rotation={[0.35, 0, 0.04]}
-              scale={1.85}
+              position={[0, -2.96, 0]}
+              rotation={[0.28, 0, 0]}
+              scale={1.92}
               autoRotate={true}
-              rotationSpeed={0.025}
-              showHorizonGlow={true}
+              rotationSpeed={0.02}
+              showHorizonGlow={false}
+              showSites={false}
             />
           </Suspense>
         </Canvas>
       </div>
 
-      {/* Cabecera / Identidad */}
-      <header className="relative z-10 flex items-center justify-between w-full border-b border-white/10 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 bg-[#FF9F1C] rotate-45" />
-          <h2 className="font-display text-sm md:text-base tracking-widest text-[#FBFBFB] lowercase">
-            astRo teaM
-          </h2>
-        </div>
-        <span className="font-mono text-xs px-3 py-1 rounded border border-white/10 bg-black/40 backdrop-blur-sm text-slate-300">
-          nasa space apps 2026
-        </span>
-      </header>
+      {/* Capa "shadow" de Figma duplicada (dos veces sobrepuesta en z-[5]) */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 z-[5] pointer-events-none"
+      >
+        <FigmaDiamondShadow opacity={1} />
+        <FigmaDiamondShadow opacity={1} />
+      </div>
 
-      {/* Hero Section posicionado en la mitad superior despejada sobre el horizonte lunar */}
-      <section className="relative z-10 w-full max-w-5xl mx-auto text-center mt-10 md:mt-16 mb-auto px-4">
-        <h1 className="font-display text-5xl sm:text-7xl md:text-8xl font-normal leading-none tracking-tight text-[#FBFBFB] mb-8 drop-shadow-[0_4px_30px_rgba(0,0,0,0.95)]">
+      {/* Bloque de Título y Descripción: centrado horizontalmente, ancho 85% del modelo 3D y subtítulo acorde */}
+      <section
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[35vh] z-10 flex flex-col items-center pointer-events-auto"
+        style={
+          {
+            "--title-fs": "clamp(2.5rem, 12.5vh, 128px)",
+          } as React.CSSProperties
+        }
+      >
+        <h1
+          className="font-display font-normal leading-none tracking-normal text-[#FFFFFF] select-text text-center"
+          style={{
+            fontSize: "var(--title-fs)",
+            width: "min(94.11vh, 95vw)",
+          }}
+        >
           astRo teaM
         </h1>
-        <p className="font-sans text-base md:text-lg text-slate-300 max-w-4xl mx-auto leading-relaxed mb-24 md:mb-36 px-4">
+        <p
+          className="font-sans font-normal text-[#FFFFFF] text-center mt-6 sm:mt-8 md:mt-10"
+          style={{
+            fontSize: "calc(var(--title-fs) * 0.156)",
+            lineHeight: "1.2",
+            width: "min(83.29vh, 90vw)",
+          }}
+        >
           We precompute solar and terrestrial ephemerides to simulate polar regolith grazing shadows and Direct-to-Earth (DTE) communication windows with sub-degree accuracy.
         </p>
-
-        <div className="flex items-center justify-center pt-8 md:pt-12">
-          <button
-            onClick={onEnterExplorer}
-            className="px-8 py-4 bg-[#FF9F1C] hover:bg-[#ffaa33] text-[#0F1108] font-heading font-bold text-sm md:text-base uppercase tracking-wider rounded-lg transition-all duration-200 shadow-[0_0_25px_rgba(255,159,28,0.4)] flex items-center gap-3"
-          >
-            <span>Launch 3D Explorer</span>
-            <span aria-hidden="true">&rarr;</span>
-          </button>
-        </div>
       </section>
+
+      {/* Botón CTA "Aterrizar": centrado con offset +3rem */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 mt-[calc(6px+3rem)] z-10 pointer-events-auto">
+        <FigmaLandingButton onClick={onEnterExplorer} />
+      </div>
     </main>
   );
 };

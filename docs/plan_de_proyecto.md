@@ -131,21 +131,27 @@ Para asegurar coherencia visual con la estética de telemetría y centro de cont
 | :--- | :--- | :--- | :--- |
 | **Hero / Logo** | `Major Mono Display` | 400 Regular (minúsculas) | `astRo teaM // artemis south pole` |
 | **Cabeceras HUD / Secciones** | `Space Grotesk` | 700 Bold | `ANÁLISIS DE ILUMINACIÓN POLAR, SITIOS VIABLES` |
+| **Botones CTA** | `Inter` | 700 Bold (`1.25rem` / `20px`) | `touch down` |
 | **Cuerpo / Textos / Labels** | `Inter` | 400 Regular / 500 Medium | Explicaciones de criterios, descripciones de cráteres, modales de ayuda |
-| **Telemetría / Efemérides / Coordenadas** | `Space Mono` | 400 Regular / 700 Bold | `AZ: 142.8° / EL: +0.45° / 2026-10-24 14:00 UTC` |
 
-### Paleta Cromática Oficial (Adobe Color)
-- **Deep NASA Blue (`#0032A0`):** Enlaces orbitales y vectores de comunicación con la Tierra.
-- **NASA Mission Red (`#E4002B`):** Indicadores de blackout, alertas de pendiente y estados críticos.
-- **Solar / Artemis Amber (`#FF9F1C`):** Botones principales, luz solar activa, iluminación rasante y acentos de navegación.
-- **Off-White / Regolito (`#FBFBFB`):** Textos principales, contrastes nítidos sobre fondos oscuros.
-- **Deep Space Black (`#0F1108`):** Fondo general del viewport, tarjetas HUD y atmósfera de espacio profundo.
+*(Nota: Por ahora se prescinde de `Space Mono`, unificando botones CTA y cuerpo bajo `Inter`).*
+
+### Paleta Cromática Oficial (Adobe Color - Actualizada Lunar Regolith)
+- **Regolith Warm Cream (`#D9CEC5`):** Superficies de botones tácticos, cápsulas glassmorphism, acentos sutiles de suelo lunar.
+- **Charcoal Dark Slate (`#3B3B40`):** Textos oscuros en botones, bordes de alto contraste y tarjetas HUD.
+- **Space Slate Purple / Dust (`#7F7B8C`):** Elementos secundarios, retículas de telemetría y badges neutrales.
+- **Lunar Ochre / Earthshine (`#A6948A`):** Iluminación solar rasante suave, transiciones térmicas y marcadores.
+- **Deep Space Obsidian (`#0D0D0D`):** Fondo general del viewport espacial, lienzo principal y sombras permanentes (PSR).
+
+### Sistema de Iconografía Oficial
+- **Biblioteca:** `Phosphor Icons` (`@phosphor-icons/react`).
+- **Estilo:** `regular` y `bold` para interfaz HUD táctica y controles de telemetría.
 
 ---
 
 ## 8. Arquitectura y Estructura de Carpetas del Frontend
 
-Basado en el stack técnico definido para el proyecto (**React 18**, **Three.js / React Three Fiber / Drei**, **Vite** y **Tailwind CSS**):
+Basado en el stack técnico definido para el proyecto (**React 18**, **Three.js / React Three Fiber / Drei**, **Vite**, **Tailwind CSS** y **Phosphor Icons (`@phosphor-icons/react`)**):
 
 ```text
 AstroTeam/

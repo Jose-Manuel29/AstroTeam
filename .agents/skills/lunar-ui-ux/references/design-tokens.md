@@ -4,27 +4,15 @@ Estándar de diseño para la interfaz del Visualizador del Polo Sur Lunar. Compa
 
 ---
 
-## 1. Tokens de Color (Paleta Aeroespacial Lunar)
+## 1. Tokens de Color (Paleta Oficial Adobe Color - Lunar Regolith)
 
-### Superficies & Fondos (Space Surfaces)
-| Token | Hex | Tailwind Utility | Uso |
+| Token | Hex | Tailwind Utility | Semántica / Uso |
 | :--- | :--- | :--- | :--- |
-| `surface-space` | `#05070B` | `bg-[#05070B]` | Fondo general del viewport / lienzo espacial |
-| `surface-panel` | `#0D121D` | `bg-[#0D121D]` | Fondo base de paneles laterales y modales |
-| `surface-card` | `#151D2E` | `bg-[#151D2E]/80` | Cards de telemetría con `backdrop-blur-md` |
-| `surface-subtle`| `#1E293B` | `bg-slate-800` | Inputs, botones secundarios, hover states |
-| `border-hud` | `rgba(255,255,255,0.1)`| `border-white/10` | Bordes finos de paneles tácticos HUD |
-| `border-accent` | `#38BDF8` | `border-sky-400` | Borde de elemento seleccionado o en foco |
-
-### Acentos de Telemetría Científica
-| Token | Hex | Semántica |
-| :--- | :--- | :--- |
-| `solar-active` | `#F59E0B` / `#FBBF24` | Sol sobre el horizonte polar (energía solar disponible) |
-| `solar-dark` | `#334155` | Sombra o noche lunar |
-| `psr-ice` | `#06B6D4` / `#67E8F9` | Región en Sombra Permanente (potencial hielo de agua) |
-| `earth-link-ok` | `#10B981` | Línea de vista directa con la Tierra (enlace de comunicación activo) |
-| `earth-link-down` | `#EF4444` | Pérdida de comunicación DTE (*blackout*) |
-| `alert-warning` | `#F97316` | Pendiente elevada / Terreno de alto riesgo para alunizaje |
+| `palette-cream` | `#D9CEC5` | `bg-palette-cream` / `lunarPalette-200` | Cápsulas interactivas, fondo de botones tácticos, acento regolito |
+| `palette-charcoal` | `#3B3B40` | `text-palette-charcoal` / `lunarPalette-700` | Texto de alto contraste sobre cápsulas, bordes HUD sutiles |
+| `palette-slate` | `#7F7B8C` | `text-palette-slate` / `lunarPalette-500` | Telemetría secundaria, retículas, polvo lunar |
+| `palette-ochre` | `#A6948A` | `text-palette-ochre` / `lunarPalette-400` | Resplandor solar suave, transiciones térmicas, earthshine |
+| `palette-obsidian` | `#0D0D0D` | `bg-palette-obsidian` / `lunarPalette-950` | Fondo general de espacio profundo, paneles HUD, sombras permanentes |
 
 ---
 
@@ -34,10 +22,12 @@ Alineado con la **Sección 7** de [docs/plan_de_proyecto.md](../../docs/plan_de_
 
 | Nivel UI | Fuente | Peso | Ejemplo de Uso |
 | :--- | :--- | :--- | :--- |
-| **Hero / Logo** | `Major Mono Display` | 400 Regular | `ASTROTEAM // ARTEMIS SOUTH POLE` |
+| **Hero / Logo** | `Major Mono Display` | 400 Regular (minúsculas) | `astRo teaM // artemis south pole` |
 | **Cabeceras HUD / Secciones** | `Space Grotesk` | 700 Bold | `ANÁLISIS DE ILUMINACIÓN POLAR, SITIOS VIABLES` |
+| **Botones CTA** | `Inter` | 700 Bold (`1.25rem` / `20px`) | `touch down` |
 | **Cuerpo / Textos / Labels** | `Inter` | 400 Regular / 500 Medium | Explicaciones de criterios, descripciones de cráteres, modales de ayuda |
-| **Telemetría / Efemérides / Coordenadas** | `Space Mono` | 400 Regular / 700 Bold | `AZ: 142.8° / EL: +0.45° / 2026-10-24 14:00 UTC` |
+
+*(Nota: Por ahora no se emplea `Space Mono`).*
 
 ---
 

@@ -1,226 +1,677 @@
 "use client";
 
-import React, { useState, useMemo, useRef, Suspense } from "react";
+import React, { useState, useMemo, useRef, useEffect, Suspense } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import { MoonGlobe } from "../components/3d_canvas/MoonGlobe";
 import { CANDIDATE_LANDING_SITES } from "../data/landingSites";
-import { LandingSite, ViabilityFilterCriteria } from "../types";
+import { LandingSite } from "../types";
+import { FigmaDiamondShadow } from "../components/ui/FigmaDiamondShadow";
+import { FigmaLandingButton } from "../components/ui/FigmaLandingButton";
+import {
+  CriteriaSlidersCard,
+  CriterionSliderItem,
+  CriteriaIconListCard,
+  CriterionIconListItem,
+} from "../components/hud";
 
-export type ExplorerPhase = "landing" | "transitioning" | "picker";
+export type ExplorerPhase = "landing" | "transitioning" | "picker" | "detail";
 
 export interface LocationPickerViewProps {
   initialPhase?: ExplorerPhase;
-  onSelectSiteDetail?: (siteId: string) => void;
+  isDetailActive?: boolean;
+  onSelectSiteDetail?: (siteSlug: string) => void;
+  onDetailMoonArrived?: () => void;
+  onBackToPicker?: () => void;
 }
 
 interface SceneDirectorProps {
   phase: ExplorerPhase;
+  hourOfDay: number;
   sites: (LandingSite & { isViable?: boolean })[];
   selectedSiteId: string | null;
   onSelectSite: (site: LandingSite) => void;
+  onDetailMoonArrived?: () => void;
+  onBackToPicker?: () => void;
+}
+
+const NATIVE_MOON_RADIUS = 1.27186;
+
+// Estado del Home (perspectiva, escala y ángulo de cámara alineados con la referencia de Figma)
+const HOME_CAM_Z = 5.5;
+const HOME_CAM_FOV = 35;
+const HOME_MOON_Y = -2.96;
+const HOME_MOON_SCALE = 1.92;
+const HOME_MOON_ROTX = 0.28;
+const HOME_MOON_ROTZ = 0.0;
+
+// Estado del Picker: Polo Sur inclinado ~20° hacia el frente (216° / 3.77 rad) y Luna ubicada ligeramente más baja
+const PICKER_CAM_Z = 5.45;
+const PICKER_CAM_FOV = 38;
+const PICKER_MOON_Y = -2.72;
+const PICKER_MOON_SCALE = 2.45;
+const PICKER_MOON_ROTX = 3.77; // ~216°: Polo Sur con inclinación frontal de 36° hacia el observador
+const PICKER_MOON_ROTZ = 0.0;
+
+// Estado en Detail (esquina inferior derecha con inclinación estética de -34° en Z)
+const DETAIL_TILT_ROTX = 3.32;
+const DETAIL_TILT_ROTZ = -0.60;
+const DETAIL_SHRINK_DURATION = 1.85;
+const DETAIL_AXIS_DURATION = 0.65;
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
 }
 
 /**
- * Controlador de la animación continua 3D:
- * - En landing: cámara en [0, 0, 5.5], Luna en horizonte [0, -2.53, 0], rotación X = 0.35.
- * - Durante la transición: cámara se aleja suavemente a Z = 6.0, Luna se eleva al centro [0, 0, 0]
- *   y rota su eje X hacia -1.38 rad para apuntar el Polo Sur directamente hacia el usuario,
- *   mostrando progresivamente los marcadores de sitios candidatos.
+ * Obtiene las dimensiones y coordenadas de pantalla del slot reservado en la UI.
  */
-// Estado original del Home (antes de modificar la cámara)
-const HOME_CAM_Z = 5.5;
-const HOME_CAM_FOV = 35;
-const HOME_MOON_Y = -2.53;
-const HOME_MOON_SCALE = 1.85;
-const HOME_MOON_ROTX = 0.35;
-const HOME_MOON_ROTZ = 0.04;
-
-// Estado del Picker (aprobado por el usuario)
-const PICKER_CAM_Z = 5.45;
-const PICKER_CAM_FOV = 38;
-const PICKER_MOON_Y = -2.65;
-const PICKER_MOON_SCALE = 2.45;
-const PICKER_MOON_ROTX = 3.42; // ~196°: Polo Sur apuntando hacia arriba
-const PICKER_MOON_ROTZ = 0.0;
+function getElementRestingRect(element: HTMLElement): {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+} {
+  const rect = element.getBoundingClientRect();
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
+}
 
 const SceneDirector: React.FC<SceneDirectorProps> = ({
   phase,
+  hourOfDay,
   sites,
   selectedSiteId,
   onSelectSite,
+  onDetailMoonArrived,
+  onBackToPicker,
 }) => {
-  const { camera } = useThree();
+  const { camera, gl, viewport, size } = useThree();
   const moonGroupRef = useRef<THREE.Group>(null);
+  const turntableRef = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.DirectionalLight>(null);
   const rimLightRef = useRef<THREE.DirectionalLight>(null);
 
   const isLanding = phase === "landing";
+  const isDetail = phase === "detail";
+  const isDragging = useRef(false);
+  const prevX = useRef(0);
+  // Ángulo inicial para que el pin seleccionado (Shackleton) quede en el cuadrante superior-izquierdo como en la referencia
+  const targetRotationY = useRef(-0.45);
+
+  // Controladores para el trayecto continuo Picker -> Esquina Inferior Derecha (Detail) sin desmontar jamás el modelo
+  const detailElapsedRef = useRef(0);
+  const detailStartPosRef = useRef({ x: 0, y: PICKER_MOON_Y, scale: PICKER_MOON_SCALE, rotX: PICKER_MOON_ROTX, rotZ: PICKER_MOON_ROTZ });
+  const detailArrivedNotifiedRef = useRef(false);
+  const [axisProgress, setAxisProgress] = useState(0);
+
+  useEffect(() => {
+    if (phase === "detail") {
+      detailElapsedRef.current = 0;
+      detailArrivedNotifiedRef.current = false;
+      setAxisProgress(0);
+      if (moonGroupRef.current) {
+        detailStartPosRef.current = {
+          x: moonGroupRef.current.position.x,
+          y: moonGroupRef.current.position.y,
+          scale: moonGroupRef.current.scale.x,
+          rotX: moonGroupRef.current.rotation.x,
+          rotZ: moonGroupRef.current.rotation.z,
+        };
+      }
+    } else {
+      detailElapsedRef.current = 0;
+      detailArrivedNotifiedRef.current = false;
+      setAxisProgress(0);
+    }
+  }, [phase]);
+
+  // Escucha eventos de arrastre horizontal en el canvas exclusivamente durante la fase "picker"
+  useEffect(() => {
+    if (phase !== "picker") return;
+
+    const dom = gl.domElement;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      isDragging.current = true;
+      prevX.current = e.clientX;
+      dom.style.cursor = "grabbing";
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!isDragging.current) return;
+      const deltaX = e.clientX - prevX.current;
+      prevX.current = e.clientX;
+
+      // Velocidad moderada y controlada (~0.0022 rad por pixel), giro natural invertido acorde al arrastre
+      targetRotationY.current -= deltaX * 0.0022;
+    };
+
+    const handlePointerUp = () => {
+      if (isDragging.current) {
+        isDragging.current = false;
+        dom.style.cursor = "grab";
+      }
+    };
+
+    dom.style.cursor = "grab";
+    dom.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      dom.style.cursor = "auto";
+      dom.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [phase, gl]);
 
   useFrame((_, delta) => {
-    // 1. Interpolación suave entre la cámara original del Home y la cámara del Picker
+    const safeDelta = Math.min(delta, 0.05);
+
+    // 1. Interpolación suave de cámara: posición fija en X e Y (sin movimiento ni órbita de cámara)
     const targetCamZ = isLanding ? HOME_CAM_Z : PICKER_CAM_Z;
     const targetFov = isLanding ? HOME_CAM_FOV : PICKER_CAM_FOV;
+    const camDampSpeed = isLanding ? 1.4 : 2.5;
 
-    camera.position.z = THREE.MathUtils.damp(camera.position.z, targetCamZ, 2.5, delta);
+    camera.position.x = 0.0;
     camera.position.y = 0.0;
+    camera.position.z = THREE.MathUtils.damp(
+      camera.position.z,
+      targetCamZ,
+      camDampSpeed,
+      safeDelta
+    );
+    camera.lookAt(0, 0, 0);
 
     if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
       const perspCam = camera as THREE.PerspectiveCamera;
       if (Math.abs(perspCam.fov - targetFov) > 0.01) {
-        perspCam.fov = THREE.MathUtils.damp(perspCam.fov, targetFov, 2.5, delta);
+        perspCam.fov = THREE.MathUtils.damp(perspCam.fov, targetFov, camDampSpeed, safeDelta);
         perspCam.updateProjectionMatrix();
       }
     }
 
-    // 2. Interpolación de la Luna desde su estado original en Home hacia la vista del Polo Sur en Picker
+    // 2. Interpolación continua de la MISMA Luna entre Home, Picker y Detail (esquina inferior derecha)
     if (moonGroupRef.current) {
-      const targetPosY = isLanding ? HOME_MOON_Y : PICKER_MOON_Y;
-      const targetScale = isLanding ? HOME_MOON_SCALE : PICKER_MOON_SCALE;
-      const targetRotX = isLanding ? HOME_MOON_ROTX : PICKER_MOON_ROTX;
-      const targetRotZ = isLanding ? HOME_MOON_ROTZ : PICKER_MOON_ROTZ;
+      if (isDetail) {
+        detailElapsedRef.current += safeDelta;
 
-      moonGroupRef.current.position.y = THREE.MathUtils.damp(
-        moonGroupRef.current.position.y,
-        targetPosY,
-        2.5,
-        delta
-      );
+        // Destino base por defecto (fallback en caso de que aún no monte la UI)
+        let targetX = viewport.width / 2 - viewport.width * 0.135;
+        let targetY = -viewport.height / 2 + viewport.height * 0.165;
+        let targetScale = (viewport.height * 0.205) / (2 * NATIVE_MOON_RADIUS);
 
-      const currentScale = THREE.MathUtils.damp(
-        moonGroupRef.current.scale.x,
-        targetScale,
-        2.5,
-        delta
-      );
-      moonGroupRef.current.scale.set(currentScale, currentScale, currentScale);
+        // Si existe el slot reservado en la UI (card falsa en SiteDetailView),
+        // calculamos la posición y escala exactas para que quede alineada con las cards superiores
+        const slotEl =
+          typeof document !== "undefined"
+            ? (document.getElementById("mini-moon-target") ||
+               document.getElementById("mini-moon-card-slot"))
+            : null;
 
-      moonGroupRef.current.rotation.x = THREE.MathUtils.damp(
-        moonGroupRef.current.rotation.x,
-        targetRotX,
-        2.2,
-        delta
-      );
+        if (slotEl && size.width > 0 && size.height > 0) {
+          const resting = getElementRestingRect(slotEl);
+          if (resting.width > 0 && resting.height > 0) {
+            // Diámetro completo de la esfera dentro del contenedor
+            const boxDiameterPx = Math.min(resting.width, resting.height);
+            const worldDiameter = (boxDiameterPx / size.height) * viewport.height;
+            const worldRadius = worldDiameter / 2;
+            targetScale = worldRadius / NATIVE_MOON_RADIUS;
 
-      moonGroupRef.current.rotation.z = THREE.MathUtils.damp(
-        moonGroupRef.current.rotation.z,
-        targetRotZ,
-        2.2,
-        delta
-      );
+            // Borde derecho e inferior del contenedor interno (donde empieza el texto de las cards tras el padding)
+            const rightEdgePx = resting.left + resting.width;
+            const bottomEdgePx = resting.top + resting.height;
+
+            const rightNdcX = (rightEdgePx / size.width) * 2 - 1;
+            const bottomNdcY = -(bottomEdgePx / size.height) * 2 + 1;
+
+            const rightEdgeWorldX = (rightNdcX * viewport.width) / 2;
+            const bottomEdgeWorldY = (bottomNdcY * viewport.height) / 2;
+
+            const camZ = Math.max(0.1, camera.position.z);
+
+            // Anclaje exacto en perspectiva a la esquina inferior-derecha del contenedor
+            // para que el borde derecho de la Luna 3D empiece exactamente en la misma línea que el texto de las cards
+            targetX =
+              rightEdgeWorldX -
+              worldRadius * Math.sqrt(1 + (rightEdgeWorldX / camZ) ** 2);
+            targetY =
+              bottomEdgeWorldY +
+              worldRadius * Math.sqrt(1 + (bottomEdgeWorldY / camZ) ** 2);
+          }
+        }
+
+        const rawT = Math.min(1, detailElapsedRef.current / DETAIL_SHRINK_DURATION);
+        const smoothT = easeInOutCubic(rawT);
+        const smoothY = easeOutCubic(rawT);
+
+        const start = detailStartPosRef.current;
+
+        moonGroupRef.current.position.x = THREE.MathUtils.lerp(start.x, targetX, smoothT);
+        moonGroupRef.current.position.y = THREE.MathUtils.lerp(start.y, targetY, smoothY);
+
+        const currentScale = THREE.MathUtils.lerp(start.scale, targetScale, smoothT);
+        moonGroupRef.current.scale.set(currentScale, currentScale, currentScale);
+
+        moonGroupRef.current.rotation.x = THREE.MathUtils.lerp(
+          start.rotX,
+          DETAIL_TILT_ROTX,
+          smoothT
+        );
+        moonGroupRef.current.rotation.z = THREE.MathUtils.lerp(
+          start.rotZ,
+          DETAIL_TILT_ROTZ,
+          smoothT
+        );
+
+        if (rawT >= 1) {
+          moonGroupRef.current.position.x = targetX;
+          moonGroupRef.current.position.y = targetY;
+          moonGroupRef.current.scale.set(targetScale, targetScale, targetScale);
+
+          if (!detailArrivedNotifiedRef.current) {
+            detailArrivedNotifiedRef.current = true;
+            onDetailMoonArrived?.();
+          }
+
+          const timeAfterArrival = detailElapsedRef.current - DETAIL_SHRINK_DURATION;
+          const nextAxisProg = easeOutCubic(
+            Math.min(1, Math.max(0, timeAfterArrival / DETAIL_AXIS_DURATION))
+          );
+          if (
+            Math.abs(nextAxisProg - axisProgress) > 0.01 ||
+            (nextAxisProg === 1 && axisProgress < 1)
+          ) {
+            setAxisProgress(nextAxisProg);
+          }
+        }
+      } else {
+        const targetPosX = 0.0;
+        const targetPosY = isLanding ? HOME_MOON_Y : PICKER_MOON_Y;
+        const targetScale = isLanding ? HOME_MOON_SCALE : PICKER_MOON_SCALE;
+        const targetRotX = isLanding ? HOME_MOON_ROTX : PICKER_MOON_ROTX;
+        const targetRotZ = isLanding ? HOME_MOON_ROTZ : PICKER_MOON_ROTZ;
+
+        const dampSpeed = isLanding ? 1.4 : 2.5;
+
+        moonGroupRef.current.position.x = THREE.MathUtils.damp(
+          moonGroupRef.current.position.x,
+          targetPosX,
+          dampSpeed,
+          safeDelta
+        );
+
+        moonGroupRef.current.position.y = THREE.MathUtils.damp(
+          moonGroupRef.current.position.y,
+          targetPosY,
+          dampSpeed,
+          safeDelta
+        );
+
+        const currentScale = THREE.MathUtils.damp(
+          moonGroupRef.current.scale.x,
+          targetScale,
+          dampSpeed,
+          safeDelta
+        );
+        moonGroupRef.current.scale.set(currentScale, currentScale, currentScale);
+
+        moonGroupRef.current.rotation.x = THREE.MathUtils.damp(
+          moonGroupRef.current.rotation.x,
+          targetRotX,
+          isLanding ? 1.4 : 2.2,
+          safeDelta
+        );
+
+        moonGroupRef.current.rotation.z = THREE.MathUtils.damp(
+          moonGroupRef.current.rotation.z,
+          targetRotZ,
+          isLanding ? 1.4 : 2.2,
+          safeDelta
+        );
+      }
     }
 
-    // 3. Iluminación: exacta a la original en Home y rasante en Picker
-    if (lightRef.current) {
-      const targetLightX = isLanding ? 0.0 : 3.0;
-      const targetLightY = isLanding ? 6.5 : 6.0;
-      const targetLightZ = isLanding ? 1.5 : 2.8;
-      const targetIntensity = isLanding ? 2.8 : 2.7;
+    // 3. Suavizado progresivo de la rotación axial (turntable) con damping para eliminar tirones
+    if (turntableRef.current) {
+      if (isDetail) {
+        turntableRef.current.rotation.y += safeDelta * 0.025;
+      } else {
+        turntableRef.current.rotation.y = THREE.MathUtils.damp(
+          turntableRef.current.rotation.y,
+          targetRotationY.current,
+          4.5,
+          safeDelta
+        );
+      }
+    }
 
-      lightRef.current.position.x = THREE.MathUtils.damp(lightRef.current.position.x, targetLightX, 2.5, delta);
-      lightRef.current.position.y = THREE.MathUtils.damp(lightRef.current.position.y, targetLightY, 2.5, delta);
-      lightRef.current.position.z = THREE.MathUtils.damp(lightRef.current.position.z, targetLightZ, 2.5, delta);
-      lightRef.current.intensity = THREE.MathUtils.damp(lightRef.current.intensity, targetIntensity, 2.5, delta);
+    // 4. Iluminación frontal-superior modulada sutilmente por el slider horario en modo Picker
+    if (lightRef.current) {
+      const hourOffset = isLanding || isDetail
+        ? 0
+        : Math.sin(((hourOfDay - 12) / 24) * Math.PI * 2) * 2.2;
+      const targetLightX = hourOffset;
+      const targetLightY = 4.2;
+      const targetLightZ = 4.5;
+      const targetIntensity = 2.15;
+
+      lightRef.current.position.x = THREE.MathUtils.damp(
+        lightRef.current.position.x,
+        targetLightX,
+        2.5,
+        safeDelta
+      );
+      lightRef.current.position.y = THREE.MathUtils.damp(
+        lightRef.current.position.y,
+        targetLightY,
+        2.5,
+        safeDelta
+      );
+      lightRef.current.position.z = THREE.MathUtils.damp(
+        lightRef.current.position.z,
+        targetLightZ,
+        2.5,
+        safeDelta
+      );
+      lightRef.current.intensity = THREE.MathUtils.damp(
+        lightRef.current.intensity,
+        targetIntensity,
+        2.5,
+        safeDelta
+      );
     }
 
     if (rimLightRef.current) {
-      const targetRimY = isLanding ? 5.5 : 5.0;
-      const targetRimIntensity = isLanding ? 1.5 : 0.9;
-      rimLightRef.current.position.y = THREE.MathUtils.damp(rimLightRef.current.position.y, targetRimY, 2.5, delta);
-      rimLightRef.current.intensity = THREE.MathUtils.damp(rimLightRef.current.intensity, targetRimIntensity, 2.5, delta);
+      const targetRimY = 5.5;
+      const targetRimIntensity = 0.65;
+      rimLightRef.current.position.y = THREE.MathUtils.damp(
+        rimLightRef.current.position.y,
+        targetRimY,
+        2.5,
+        safeDelta
+      );
+      rimLightRef.current.intensity = THREE.MathUtils.damp(
+        rimLightRef.current.intensity,
+        targetRimIntensity,
+        2.5,
+        safeDelta
+      );
     }
   });
 
+  const innerExtent = NATIVE_MOON_RADIUS * 0.98;
+  const maxOuterExtent = NATIVE_MOON_RADIUS * 1.42;
+  const currentOuterExtent = innerExtent + (maxOuterExtent - innerExtent) * axisProgress;
+
   return (
     <>
-      <ambientLight intensity={isLanding ? 0.03 : 0.08} />
+      <ambientLight intensity={0.24} color="#7F7B8C" />
       <directionalLight
         ref={lightRef}
-        position={[0, 6.5, 1.5]}
-        intensity={2.8}
-        color="#f8fafc"
+        position={[0.0, 4.2, 4.5]}
+        intensity={2.15}
+        color="#ffffff"
       />
       <directionalLight
         ref={rimLightRef}
-        position={[0, 5.5, -2.5]}
-        intensity={1.5}
-        color="#7dd3fc"
+        position={[0, 5.5, -2.0]}
+        intensity={0.65}
+        color="#D9CEC5"
       />
 
-      {/* Inicia con los parámetros exactos del Home original */}
+      {/* La misma instancia de Luna persiste en Home, Picker y Detail sin desmontarse jamás */}
       <group
         ref={moonGroupRef}
         position={[0, HOME_MOON_Y, 0]}
         rotation={[HOME_MOON_ROTX, 0, HOME_MOON_ROTZ]}
         scale={[HOME_MOON_SCALE, HOME_MOON_SCALE, HOME_MOON_SCALE]}
       >
-        <MoonGlobe
-          scale={1.0}
-          sites={sites}
-          selectedSiteId={selectedSiteId}
-          onSelectSite={onSelectSite}
-          autoRotate={true}
-          rotationSpeed={isLanding ? 0.025 : 0.012}
-          showHorizonGlow={true}
-          showSites={!isLanding}
-        />
-      </group>
+        <group
+          ref={turntableRef}
+          onClick={(e) => {
+            if (isDetail) {
+              e.stopPropagation();
+              onBackToPicker?.();
+            }
+          }}
+        >
+          <MoonGlobe
+            scale={1.0}
+            sites={sites}
+            selectedSiteId={selectedSiteId}
+            onSelectSite={onSelectSite}
+            autoRotate={isLanding}
+            rotationSpeed={0.02}
+            showHorizonGlow={phase === "picker" || phase === "transitioning"}
+            showSites={phase === "picker"}
+          />
+        </group>
 
-      {/* OrbitControls mantiene target={[0, 0, 0]} para no cambiar el pitch de cámara ni empujar el modelo */}
-      {phase === "picker" && (
-        <OrbitControls
-          target={[0, 0, 0]}
-          enablePan={false}
-          enableDamping
-          dampingFactor={0.05}
-          minDistance={4.8}
-          maxDistance={6.2}
-          minPolarAngle={Math.PI / 2.25}
-          maxPolarAngle={Math.PI / 1.85}
-          rotateSpeed={0.5}
-        />
-      )}
+        {/* Eje Y punteado que se traza cuando la Luna llega a la esquina inferior derecha en Detail */}
+        {isDetail && axisProgress > 0.01 && (
+          <>
+            <Line
+              points={[
+                [0, innerExtent, 0],
+                [0, currentOuterExtent, 0],
+              ]}
+              color="#FAFAFA"
+              lineWidth={1.6}
+              dashed
+              dashSize={0.08}
+              gapSize={0.07}
+              transparent
+              opacity={axisProgress * 0.95}
+            />
+            <Line
+              points={[
+                [0, -innerExtent, 0],
+                [0, -currentOuterExtent, 0],
+              ]}
+              color="#FAFAFA"
+              lineWidth={1.6}
+              dashed
+              dashSize={0.08}
+              gapSize={0.07}
+              transparent
+              opacity={axisProgress * 0.95}
+            />
+          </>
+        )}
+      </group>
     </>
   );
 };
 
 export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
   initialPhase = "landing",
+  isDetailActive = false,
   onSelectSiteDetail,
+  onDetailMoonArrived,
+  onBackToPicker,
 }) => {
   const [phase, setPhase] = useState<ExplorerPhase>(initialPhase);
+
+  useEffect(() => {
+    if (isDetailActive) {
+      setPhase("detail");
+    } else if (phase === "detail") {
+      setPhase("picker");
+    }
+  }, [isDetailActive, phase]);
 
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(
     CANDIDATE_LANDING_SITES[0]?.id || null
   );
 
-  const [filters, setFilters] = useState<ViabilityFilterCriteria>({
-    minIllumination: 70,
-    maxSlope: 12,
-    requireEarthLink: true,
-    requirePsrIceProximity: false,
+  const hourOfDay = 12.0;
+
+  // Estado de los 3 sliders de criterios (Card Superior Izquierda)
+  const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>({
+    illumination: 68,
+    slope: 42,
+    earthLink: 83,
   });
 
-  const selectedSite = useMemo(
-    () => CANDIDATE_LANDING_SITES.find((s) => s.id === selectedSiteId) || null,
-    [selectedSiteId]
+  const sliderItems: CriterionSliderItem[] = useMemo(
+    () => [
+      {
+        id: "illumination",
+        label: "Zona de aterrizaje viable ↑",
+        value: criteriaValues.illumination,
+        min: 0,
+        max: 100,
+        step: 1,
+        unit: "%",
+      },
+      {
+        id: "slope",
+        label: "Tolerancia de pendiente ↑",
+        value: criteriaValues.slope,
+        min: 0,
+        max: 100,
+        step: 1,
+        unit: "%",
+      },
+      {
+        id: "earthLink",
+        label: "Ventana de enlace DTE ↑",
+        value: criteriaValues.earthLink,
+        min: 0,
+        max: 100,
+        step: 1,
+        unit: "%",
+      },
+    ],
+    [criteriaValues]
   );
 
+  const handleCriterionChange = (id: string, newValue: number) => {
+    setCriteriaValues((prev) => ({
+      ...prev,
+      [id]: newValue,
+    }));
+  };
+
+  // Filtrado de sitios candidatos en vivo según los sliders
   const filteredSites = useMemo(() => {
+    const minIllum = Math.round(45 + (criteriaValues.illumination / 100) * 40);
+    const maxSlope = 6 + (criteriaValues.slope / 100) * 14;
+    const minDte = Math.round(50 + (criteriaValues.earthLink / 100) * 40);
+
     return CANDIDATE_LANDING_SITES.map((site) => {
       const isViable =
-        site.illuminationAvgPercent >= filters.minIllumination &&
-        site.slopeDegrees <= filters.maxSlope &&
-        (!filters.requireEarthLink || site.earthVisibilityPercent >= 70);
+        site.illuminationAvgPercent >= minIllum &&
+        site.slopeDegrees <= maxSlope &&
+        site.earthVisibilityPercent >= minDte;
 
       return { ...site, isViable };
     });
-  }, [filters]);
+  }, [criteriaValues]);
 
-  const viableCount = filteredSites.filter((s) => s.isViable).length;
+  const selectedSite = useMemo(
+    () =>
+      filteredSites.find((s) => s.id === selectedSiteId) ||
+      filteredSites[0] ||
+      null,
+    [filteredSites, selectedSiteId]
+  );
 
-  // Manejo de la transición al presionar "Launch 3D Explorer"
+  // Lista derecha de 7 filas con iconos a la izquierda (igual a la referencia visual)
+  const rightListItems: CriterionIconListItem[] = useMemo(() => {
+    const site0 = filteredSites[0];
+    const site1 = filteredSites[1];
+    const site2 = filteredSites[2];
+    const site3 = filteredSites[3];
+
+    return [
+      {
+        id: site0?.id || "zone-1",
+        label: site0?.name || "Shackleton Ridge",
+        value: site0 ? `${site0.illuminationAvgPercent}%` : undefined,
+        icon: "sun",
+        active: site0?.isViable !== false,
+        selected: selectedSiteId === site0?.id,
+      },
+      {
+        id: site1?.id || "zone-2",
+        label: site1?.name || "Faustini Rim A",
+        value: site1 ? `${site1.slopeDegrees}°` : undefined,
+        icon: "thermometer",
+        active: site1?.isViable !== false,
+        selected: selectedSiteId === site1?.id,
+      },
+      {
+        id: site2?.id || "zone-3",
+        label: site2?.name || "Amundsen Rim",
+        value: site2 ? `${site2.earthVisibilityPercent}%` : undefined,
+        icon: "radiation",
+        active: site2?.isViable !== false,
+        selected: selectedSiteId === site2?.id,
+      },
+      {
+        id: site3?.id || "zone-4",
+        label: site3?.name || "Cabeus B Peak",
+        value: site3 ? `${site3.illuminationAvgPercent}%` : undefined,
+        icon: "sun",
+        active: site3?.isViable !== false,
+        selected: selectedSiteId === site3?.id,
+      },
+      {
+        id: "telemetry-rad",
+        label: "Blindaje de radiación polar",
+        value: "0.42 mSv",
+        icon: "radiation",
+        active: true,
+      },
+      {
+        id: "telemetry-therm",
+        label: "Gradiente térmico regolito",
+        value: "-168 °C",
+        icon: "thermometer",
+        active: true,
+      },
+      {
+        id: "telemetry-dte",
+        label: "Enlace orbital continuo",
+        value: selectedSite ? `${selectedSite.earthVisibilityPercent}%` : "92%",
+        icon: "sun",
+        active: true,
+      },
+    ];
+  }, [filteredSites, selectedSiteId, selectedSite]);
+
+  const handleRightListClick = (id: string) => {
+    const matchedSite = filteredSites.find((s) => s.id === id);
+    if (matchedSite) {
+      setSelectedSiteId(matchedSite.id);
+      setPhase("detail");
+      onSelectSiteDetail?.(matchedSite.slug);
+    }
+  };
+
+  const handleSelectSiteOnGlobe = (site: LandingSite) => {
+    setSelectedSiteId(site.id);
+    setPhase("detail");
+    onSelectSiteDetail?.(site.slug);
+  };
+
+  // Manejo de la transición al presionar "Aterrizar"
   const handleLaunchExplorer = () => {
     setPhase("transitioning");
     setTimeout(() => {
@@ -235,238 +686,211 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
 
   return (
     <div
-      className="relative w-full h-screen bg-[#05070B] bg-cover bg-center bg-no-repeat overflow-hidden select-none"
-      style={{ backgroundImage: "url('/images/bg_start_.webp')" }}
+      className="relative w-full h-screen bg-[#09080C] bg-cover bg-no-repeat overflow-hidden select-none"
+      style={{
+        backgroundImage: "url('/images/bg_start_.webp')",
+        backgroundPosition: "center calc(50% + 2rem)",
+      }}
     >
-      {/* Canvas 3D Único y Persistente con Animación de Cámara y Luna */}
-      <div className="absolute inset-0 z-0">
+      {/* Halo atmosférico suave detrás de la Luna en la esquina inferior derecha durante la vista de detalle */}
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute right-[18px] bottom-[8px] z-[14] w-[340px] h-[340px] rounded-full transition-opacity duration-1000 ${
+          phase === "detail" ? "opacity-100" : "opacity-0"
+        }`}
+        style={{
+          background:
+            "radial-gradient(50% 50% at 50% 50%, rgba(250, 250, 250, 0.14) 0%, rgba(166, 148, 138, 0.05) 48%, rgba(13, 13, 13, 0) 75%)",
+        }}
+      />
+
+      {/* Canvas 3D Único y Persistente con Animación Continua de Cámara y Luna (Nunca se desmonta) */}
+      <div
+        className={`absolute inset-0 ${
+          phase === "detail"
+            ? "z-[15] pointer-events-none [&_*]:!pointer-events-none"
+            : "z-0"
+        }`}
+      >
         <Canvas
           gl={{ alpha: true, antialias: true }}
-          camera={{ position: [0, 0, HOME_CAM_Z], fov: HOME_CAM_FOV, near: 0.1, far: 100 }}
+          camera={{
+            position: [0, 0, HOME_CAM_Z],
+            fov: HOME_CAM_FOV,
+            near: 0.1,
+            far: 100,
+          }}
         >
           <Suspense fallback={null}>
             <SceneDirector
               phase={phase}
+              hourOfDay={hourOfDay}
               sites={filteredSites}
               selectedSiteId={selectedSiteId}
-              onSelectSite={(site) => setSelectedSiteId(site.id)}
+              onSelectSite={handleSelectSiteOnGlobe}
+              onDetailMoonArrived={onDetailMoonArrived}
+              onBackToPicker={onBackToPicker}
             />
           </Suspense>
         </Canvas>
       </div>
 
-      {/* =========================================================================
-          1. UI DEL HOME / LANDING (Sale hacia arriba con animación suave ease-in)
-         ========================================================================= */}
-      <div
-        className="absolute inset-0 z-10 flex flex-col justify-between px-6 py-8 md:px-16 md:py-10 pointer-events-none"
-        style={{
-          transform: phase !== "landing" ? "translateY(-140%)" : "translateY(0%)",
-          opacity: phase !== "landing" ? 0 : 1,
-          transition: "transform 1.2s cubic-bezier(0.55, 0.055, 0.675, 0.19), opacity 0.85s ease-in",
-        }}
+      {/* Definición global del filtro SVG de refracción óptica (Liquid Glass) */}
+      <svg
+        className="absolute w-0 h-0 overflow-hidden pointer-events-none"
+        aria-hidden="true"
       >
-        {/* Cabecera / Identidad */}
-        <header className="flex items-center justify-between w-full border-b border-white/10 pb-4 pointer-events-auto">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-[#FF9F1C] rotate-45" />
-            <h2 className="font-display text-sm md:text-base tracking-widest text-[#FBFBFB] lowercase">
-              astRo teaM
-            </h2>
-          </div>
-          <span className="font-mono text-xs px-3 py-1 rounded border border-white/10 bg-black/40 backdrop-blur-sm text-slate-300">
-            nasa space apps 2026
-          </span>
-        </header>
+        <defs>
+          <filter
+            id="liquid-glass-refraction"
+            x="-20%"
+            y="-20%"
+            width="140%"
+            height="140%"
+          >
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.025"
+              numOctaves="2"
+              seed="4"
+              result="noise"
+            />
+            <feGaussianBlur
+              in="noise"
+              stdDeviation="2.5"
+              result="smoothNoise"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="smoothNoise"
+              scale="14"
+              xChannelSelector="R"
+              yChannelSelector="G"
+              result="refraction"
+            />
+          </filter>
+        </defs>
+      </svg>
 
-        {/* Hero Section */}
-        <section className="w-full max-w-5xl mx-auto text-center mt-10 md:mt-16 mb-auto px-4 pointer-events-auto">
-          <h1 className="font-display text-5xl sm:text-7xl md:text-8xl font-normal leading-none tracking-tight text-[#FBFBFB] mb-8 drop-shadow-[0_4px_30px_rgba(0,0,0,0.95)]">
-            astRo teaM
-          </h1>
-          <p className="font-sans text-base md:text-lg text-slate-300 max-w-4xl mx-auto leading-relaxed mb-24 md:mb-36 px-4">
-            We precompute solar and terrestrial ephemerides to simulate polar regolith grazing shadows and Direct-to-Earth (DTE) communication windows with sub-degree accuracy.
-          </p>
-
-          <div className="flex items-center justify-center pt-8 md:pt-12">
-            <button
-              onClick={handleLaunchExplorer}
-              className="px-8 py-4 bg-[#FF9F1C] hover:bg-[#ffaa33] text-[#0F1108] font-heading font-bold text-sm md:text-base uppercase tracking-wider rounded-lg transition-all duration-200 shadow-[0_0_25px_rgba(255,159,28,0.4)] flex items-center gap-3 cursor-pointer"
-            >
-              <span>Launch 3D Explorer</span>
-              <span aria-hidden="true">&rarr;</span>
-            </button>
-          </div>
-        </section>
+      {/* Capa "shadow" de Figma duplicada (dos veces sobrepuesta en z-[5]) */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 z-[5] pointer-events-none transition-opacity duration-1000"
+      >
+        <FigmaDiamondShadow opacity={phase === "landing" ? 1 : 0.25} />
+        <FigmaDiamondShadow opacity={phase === "landing" ? 1 : 0.25} />
       </div>
 
       {/* =========================================================================
-          2. UI DEL EXPLORADOR / PICKER HUD (Aparece suavemente al llegar al Polo Sur)
+          1. UI DEL HOME / LANDING (z-10: por encima de la capa shadow, anclada al centro vertical)
+         ========================================================================= */}
+      <div
+        className="absolute inset-0 z-10 pointer-events-none"
+        style={{
+          transform:
+            phase !== "landing" ? "translateY(-140%)" : "translateY(0%)",
+          opacity: phase !== "landing" ? 0 : 1,
+          transition:
+            phase === "landing"
+              ? "transform 1.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.5s ease-out"
+              : "transform 1.2s cubic-bezier(0.55, 0.055, 0.675, 0.19), opacity 0.85s ease-in",
+        }}
+      >
+        {/* Bloque de Título y Descripción: centrado horizontalmente, ancho 85% del modelo 3D y subtítulo acorde */}
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[35vh] flex flex-col items-center pointer-events-auto"
+          style={
+            {
+              "--title-fs": "clamp(2.5rem, 12.5vh, 128px)",
+            } as React.CSSProperties
+          }
+        >
+          <h1
+            className="font-display font-normal leading-none tracking-normal text-[#FFFFFF] select-text text-center"
+            style={{
+              fontSize: "var(--title-fs)",
+              width: "min(94.11vh, 95vw)",
+            }}
+          >
+            astRo teaM
+          </h1>
+          <p
+            className="font-sans font-normal text-[#FFFFFF] text-center mt-6 sm:mt-8 md:mt-10"
+            style={{
+              fontSize: "calc(var(--title-fs) * 0.156)",
+              lineHeight: "1.2",
+              width: "min(83.29vh, 90vw)",
+            }}
+          >
+            We precompute solar and terrestrial ephemerides to simulate polar
+            regolith grazing shadows and Direct-to-Earth (DTE) communication
+            windows with sub-degree accuracy.
+          </p>
+        </div>
+
+        {/* Botón CTA "Aterrizar": centrado con offset +3rem */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 mt-[calc(6px+3rem)] pointer-events-auto">
+          <FigmaLandingButton onClick={handleLaunchExplorer} />
+        </div>
+      </div>
+
+      {/* =========================================================================
+          2. UI DEL EXPLORADOR / PICKER HUD (Reutilizando los componentes modulares)
          ========================================================================= */}
       <div
         className={`absolute inset-0 z-20 pointer-events-none transition-opacity duration-700 ease-out ${
-          phase === "picker" ? "opacity-100" : "opacity-0"
+          phase === "picker" ? "opacity-100" : "opacity-0 invisible"
         }`}
+        style={{
+          visibility: phase === "picker" ? "visible" : "hidden",
+        }}
       >
-        {/* Marcadores de encuadre HUD tácticos estilo póster lunar */}
-        <div className="absolute top-20 inset-x-0 mx-auto text-center pointer-events-none">
-          <span className="font-mono text-[11px] text-slate-300 tracking-[0.25em] uppercase px-3 py-1 bg-black/50 border border-white/10 rounded-full backdrop-blur-sm">
-            <span className="inline-block w-2 h-2 rounded-full bg-rose-500 animate-pulse mr-2" />
-            REC // SOUTH POLE SECTOR
-          </span>
-        </div>
+        {/* Botón discreto superior izquierdo para volver al Home */}
+        <button
+          type="button"
+          onClick={handleBackToLanding}
+          className="absolute left-[64px] top-[18px] z-30 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#3B3B40]/30 hover:bg-[#3B3B40]/50 border border-white/15 text-[#D9CEC5] font-sans text-xs backdrop-blur-md transition-colors cursor-pointer pointer-events-auto"
+        >
+          <span>&larr;</span>
+          <span>Inicio</span>
+        </button>
 
-        {/* Retículas laterales */}
-        <div className="absolute top-1/2 left-8 -translate-y-1/2 font-mono text-sm text-white/20 pointer-events-none select-none">
-          +
-        </div>
-        <div className="absolute top-1/2 right-8 -translate-y-1/2 font-mono text-sm text-white/20 pointer-events-none select-none">
-          +
-        </div>
-
-        {/* HUD Superior: Barra de Navegación */}
-        <header className="absolute top-4 left-6 right-6 flex items-center justify-between pointer-events-none">
-          <div className="flex items-center gap-4 pointer-events-auto">
-            <button
-              onClick={handleBackToLanding}
-              className="px-3 py-1.5 rounded-lg border border-white/10 bg-black/50 hover:bg-white/10 text-slate-300 font-mono text-xs transition-colors cursor-pointer"
-            >
-              &larr; Back
-            </button>
-            <div>
-              <h1 className="font-heading text-lg font-bold text-white uppercase tracking-wider">
-                Candidate Site Selector
-              </h1>
-              <p className="font-mono text-xs text-sky-400">
-                3D Global Model // Lunar South Pole
-              </p>
-            </div>
-          </div>
-
-          <div className="pointer-events-auto flex items-center gap-3 bg-[#0D121D]/80 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-mono text-xs text-slate-300">
-              {viableCount} of {CANDIDATE_LANDING_SITES.length} viable sites
-            </span>
-          </div>
-        </header>
-
-        {/* Panel Flotante Izquierdo: Filtros de Criterios Aceptables */}
-        <aside className="absolute left-6 top-24 bottom-24 w-80 flex flex-col gap-4 pointer-events-auto">
-          <div className="p-4 rounded-xl border border-white/10 bg-[#0D121D]/85 backdrop-blur-md shadow-2xl">
-            <h2 className="font-heading text-sm font-bold text-white uppercase tracking-wider mb-3">
-              Viability Criteria
-            </h2>
-
-            {/* Slider Iluminación */}
-            <div className="mb-4">
-              <div className="flex justify-between items-center text-xs mb-1">
-                <span className="font-sans text-slate-400">Min Illumination</span>
-                <span className="font-mono text-amber-400 font-bold">{filters.minIllumination}%</span>
-              </div>
-              <input
-                type="range"
-                min="40"
-                max="95"
-                value={filters.minIllumination}
-                onChange={(e) =>
-                  setFilters({ ...filters, minIllumination: Number(e.target.value) })
-                }
-                className="w-full accent-amber-400 bg-slate-800"
-              />
-            </div>
-
-            {/* Slider Pendiente */}
-            <div className="mb-4">
-              <div className="flex justify-between items-center text-xs mb-1">
-                <span className="font-sans text-slate-400">Max Slope</span>
-                <span className="font-mono text-sky-400 font-bold">{filters.maxSlope}°</span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="25"
-                value={filters.maxSlope}
-                onChange={(e) =>
-                  setFilters({ ...filters, maxSlope: Number(e.target.value) })
-                }
-                className="w-full accent-sky-400 bg-slate-800"
-              />
-            </div>
-          </div>
-
-          {/* Lista de Sitios Candidatos */}
-          <div className="flex-1 p-4 rounded-xl border border-white/10 bg-[#0D121D]/85 backdrop-blur-md shadow-2xl overflow-y-auto">
-            <h3 className="font-heading text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Artemis Candidate Sites
-            </h3>
-            <div className="space-y-2">
-              {filteredSites.map((site) => {
-                const isSelected = site.id === selectedSiteId;
-                return (
-                  <button
-                    key={site.id}
-                    onClick={() => setSelectedSiteId(site.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition-all cursor-pointer ${
-                      isSelected
-                        ? "border-amber-400/80 bg-amber-400/10"
-                        : "border-white/5 bg-white/5 hover:border-white/20"
-                    }`}
-                  >
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-heading text-xs font-bold text-white truncate">
-                        {site.name}
-                      </span>
-                      <span
-                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                          site.isViable
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                            : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                        }`}
-                      >
-                        {site.isViable ? "VIABLE" : "NON-VIABLE"}
-                      </span>
-                    </div>
-                    <div className="flex gap-3 text-[10px] font-mono text-slate-400">
-                      <span>Illum: {site.illuminationAvgPercent}%</span>
-                      <span>Slope: {site.slopeDegrees}°</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        {/* Card Superior Izquierda: Criterios cumplidos (3 Sliders) */}
+        <aside className="absolute left-[64px] top-[56px] z-20 pointer-events-none">
+          <CriteriaSlidersCard
+            title="Criterios cumplidos"
+            items={sliderItems}
+            onChange={handleCriterionChange}
+          />
         </aside>
 
-        {/* Card Flotante Inferior Derecha: Detalle Rápido y CTA a Vista Especializada */}
-        {selectedSite && (
-          <aside className="absolute right-6 bottom-8 w-96 p-5 rounded-xl border border-white/10 bg-[#0D121D]/90 backdrop-blur-md shadow-2xl pointer-events-auto">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-mono text-[10px] text-amber-400 uppercase tracking-widest">
-                Selected Site
-              </span>
-              <span className="font-mono text-xs text-slate-400">
-                {selectedSite.coordinates.lat}°S, {selectedSite.coordinates.lng}°E
-              </span>
-            </div>
-
-            <h2 className="font-heading text-lg font-bold text-white mb-2">
-              {selectedSite.name}
-            </h2>
-
-            <p className="font-sans text-xs text-slate-300 line-clamp-2 mb-4 leading-relaxed">
-              {selectedSite.description}
-            </p>
-
-            <button
-              onClick={() => onSelectSiteDetail?.(selectedSite.slug)}
-              className="w-full py-3 bg-[#FF9F1C] hover:bg-[#ffaa33] text-[#0F1108] font-heading font-bold text-xs uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(255,159,28,0.3)]"
-            >
-              <span>Analyze 3D Local Terrain</span>
-              <span aria-hidden="true">&rarr;</span>
-            </button>
-          </aside>
-        )}
+        {/* Card Superior Derecha: Lista de Zonas y Telemetría con Iconos a la izquierda */}
+        <aside className="absolute right-[64px] top-[56px] z-20 pointer-events-none">
+          <CriteriaIconListCard
+            title="Criterios cumplidos"
+            headerAlign="right"
+            iconPosition="left"
+            items={rightListItems}
+            onToggleItem={handleRightListClick}
+            footerAction={
+              selectedSite && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhase("detail");
+                    onSelectSiteDetail?.(selectedSite.slug);
+                  }}
+                  className="w-full mt-1 py-2 px-3 rounded-[12px] bg-[#D9CEC5]/20 hover:bg-[#D9CEC5]/30 border border-white/20 font-sans font-medium text-[12px] text-[#FAFAFA] flex items-center justify-between transition-all cursor-pointer"
+                >
+                  <span className="truncate">
+                    Explorar terreno: {selectedSite.name}
+                  </span>
+                  <span aria-hidden="true">&rarr;</span>
+                </button>
+              )
+            }
+          />
+        </aside>
       </div>
     </div>
   );
