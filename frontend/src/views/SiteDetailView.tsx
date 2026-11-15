@@ -15,6 +15,7 @@ import { celestialDirectionToScene } from "../lib/geo/celestial";
 import type { LandingSite } from "../types";
 import {
   HudCard,
+  HudCardHeader,
   CriteriaSlidersCard,
   CriterionSliderItem,
   CriteriaKpiCard,
@@ -192,7 +193,6 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   const [librationError, setLibrationError] = useState<string | null>(null);
   const [librationLoading, setLibrationLoading] = useState(false);
   const [librationRetryKey, setLibrationRetryKey] = useState(0);
-  const [isEphemerisExpanded, setIsEphemerisExpanded] = useState<boolean>(false);
 
   useEffect(() => {
     let active = true;
@@ -245,6 +245,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
     setLibrationData(null);
     setLibrationError(null);
     setLibrationLoading(true);
+    const delay = librationData ? 150 : 0;
     const timeoutId = window.setTimeout(() => {
       fetchLibration(selectedTimestampUtc)
         .then((result) => {
@@ -260,7 +261,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         .finally(() => {
           if (active) setLibrationLoading(false);
         });
-    }, 500);
+    }, delay);
 
     return () => {
       active = false;
@@ -809,215 +810,192 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           </div>
         )}
 
-        <CriteriaIconListCard
-          title="Ephemeris at selected UTC"
-          actionLabel="see more"
-          expandedActionLabel="see less"
-          isExpanded={isEphemerisExpanded}
-          onToggleExpand={() => setIsEphemerisExpanded((prev) => !prev)}
-          items={iconCriteriaItems}
-          onToggleItem={handleToggleIconCriterion}
-          footerAction={
-            <div
-              className={`w-full border-t border-white/10 pt-2 transition-all duration-300 ${
-                isEphemerisExpanded
-                  ? "overflow-y-auto max-h-[clamp(150px,28vh,300px)] pr-1"
-                  : "overflow-hidden"
-              }`}
-              style={
-                isEphemerisExpanded
-                  ? {
-                      maskImage: "linear-gradient(to bottom, black calc(100% - 16px), transparent 100%)",
-                      WebkitMaskImage: "linear-gradient(to bottom, black calc(100% - 16px), transparent 100%)",
-                    }
-                  : undefined
-              }
-            >
-              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-sans">
-                <div>
-                  <dt className="text-palette-cream/70">Sun azimuth / elevation</dt>
-                  <dd className="text-[#FAFAFA] tabular-nums">
-                    {selectedPoint
-                      ? `${selectedPoint.sun_azimuth_deg.toFixed(2)}° / ${selectedPoint.sun_elevation_deg.toFixed(2)}°`
-                      : timelineLoading
-                        ? "…"
-                        : "N/D"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-palette-cream/70">Sun disk</dt>
-                  <dd className="text-[#FAFAFA]">
-                    {selectedPoint
-                      ? formatDiskVisibility(
-                          selectedPoint.is_sun_full_disk_visible,
-                          selectedPoint.is_sun_any_part_visible
-                        )
-                      : timelineLoading
-                        ? "…"
-                        : "N/D"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-palette-cream/70">Earth azimuth / elevation</dt>
-                  <dd className="text-[#FAFAFA] tabular-nums">
-                    {selectedPoint
-                      ? `${selectedPoint.earth_azimuth_deg.toFixed(2)}° / ${selectedPoint.earth_elevation_deg.toFixed(2)}°`
-                      : timelineLoading
-                        ? "…"
-                        : "N/D"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-palette-cream/70">Earth disk</dt>
-                  <dd className="text-[#FAFAFA]">
-                    {selectedPoint
-                      ? formatDiskVisibility(
-                          selectedPoint.is_earth_full_disk_visible,
-                          selectedPoint.is_earth_any_part_visible
-                        )
-                      : timelineLoading
-                        ? "…"
-                        : "N/D"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-palette-cream/70">Distance / RTT</dt>
-                  <dd className="text-[#FAFAFA] tabular-nums">
-                    {selectedPoint
-                      ? `${Math.round(selectedPoint.earth_distance_km).toLocaleString()} km / ${selectedPoint.earth_latency_rtt_sec.toFixed(2)} s`
-                      : timelineLoading
-                        ? "…"
-                        : "N/D"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-palette-cream/70">Earth phase</dt>
-                  <dd className="text-[#FAFAFA] tabular-nums">
-                    {selectedPoint?.earth_phase_angle_deg == null
-                      ? timelineLoading
-                        ? "…"
-                        : "N/D"
-                      : `${selectedPoint.earth_phase_angle_deg.toFixed(2)}°`}
-                  </dd>
-                </div>
+        <HudCard className="w-full shrink min-h-0 pointer-events-auto flex flex-col gap-2.5">
+          <HudCardHeader title="Ephemeris at selected UTC" />
 
-                {/* Métricas extendidas desplegables con "see more" */}
-                {isEphemerisExpanded && (
-                  <>
-                    <div className="col-span-2 border-t border-white/10 pt-2">
-                      <dt className="text-palette-cream/70">
-                        Libration at selected UTC
-                      </dt>
-                      <dd className="text-[#FAFAFA]">
-                        {librationLoading
-                          ? "Loading…"
-                          : librationError
-                            ? "Libration unavailable"
-                            : librationData
-                              ? `${librationData.sun_distance_au.toFixed(6)} AU from Sun`
-                              : "N/D"}
-                      </dd>
-                    </div>
-                    {selectedPoint && (
-                      <>
-                        <div>
-                          <dt className="text-palette-cream/70">
-                            Sun horizon (geometric / terrain)
-                          </dt>
-                          <dd className="text-[#FAFAFA]">
-                            {selectedPoint.sun_elevation_deg > 0 ? "Above" : "Below"}
-                            {" / "}
-                            {selectedPoint.is_sun_visible ? "Clear" : "Blocked"}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-palette-cream/70">
-                            Earth horizon (geometric / terrain)
-                          </dt>
-                          <dd className="text-[#FAFAFA]">
-                            {selectedPoint.earth_elevation_deg > 0 ? "Above" : "Below"}
-                            {" / "}
-                            {selectedPoint.is_earth_visible ? "Clear" : "Blocked"}
-                          </dd>
-                        </div>
-                      </>
-                    )}
-                    {librationData && (
-                      <>
-                        <div>
-                          <dt className="text-palette-cream/70">
-                            Sub-Earth latitude / longitude
-                          </dt>
-                          <dd className="text-[#FAFAFA] tabular-nums">
-                            {librationData.sub_earth_lat.toFixed(3)}° /{" "}
-                            {librationData.sub_earth_lon.toFixed(3)}°
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-palette-cream/70">
-                            Sub-Solar latitude / longitude
-                          </dt>
-                          <dd className="text-[#FAFAFA] tabular-nums">
-                            {librationData.sub_solar_lat.toFixed(3)}° /{" "}
-                            {librationData.sub_solar_lon.toFixed(3)}°
-                          </dd>
-                        </div>
-                      </>
-                    )}
-                    {selectedPoint && (
-                      <>
-                        <div>
-                          <dt className="text-palette-cream/70">
-                            Next solar transition (hourly estimate)
-                          </dt>
-                          <dd className="text-[#FAFAFA] tabular-nums">
-                            {nextSunTransition
-                              ? `${selectedPoint.is_sun_visible ? "Sunset" : "Sunrise"} · ${formatExactUtc(nextSunTransition.timestamp_utc)} · ${formatCountdownSeconds(
-                                  (Date.parse(nextSunTransition.timestamp_utc) -
-                                    Date.parse(selectedPoint.timestamp_utc)) /
-                                    1000
-                                )}`
-                              : "N/D · outside forecast"}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-palette-cream/70">
-                            Next Earth transition (hourly estimate)
-                          </dt>
-                          <dd className="text-[#FAFAFA] tabular-nums">
-                            {nextEarthTransition
-                              ? `${selectedPoint.is_earth_visible ? "Earth set" : "Earth rise"} · ${formatExactUtc(nextEarthTransition.timestamp_utc)} · ${formatCountdownSeconds(
-                                  (Date.parse(nextEarthTransition.timestamp_utc) -
-                                    Date.parse(selectedPoint.timestamp_utc)) /
-                                    1000
-                                )}`
-                              : "N/D · outside forecast"}
-                          </dd>
-                        </div>
-                      </>
-                    )}
-                    {librationError && (
-                      <div className="col-span-2" role="alert">
-                        <dt className="text-rose-200/80">Libration error</dt>
-                        <dd className="mt-1 flex items-center justify-between gap-2 text-rose-100">
-                          <span className="min-w-0 break-words">{librationError}</span>
-                          <button
-                            type="button"
-                            onClick={() => setLibrationRetryKey((key) => key + 1)}
-                            className="shrink-0 rounded-md border border-rose-200/40 px-2 py-1 hover:bg-rose-200/10"
-                          >
-                            Retry
-                          </button>
-                        </dd>
-                      </div>
-                    )}
-                  </>
-                )}
-              </dl>
-            </div>
-          }
-          className="w-full shrink min-h-0 max-h-[clamp(220px,42vh,460px)] flex flex-col pointer-events-auto transition-all duration-300"
-        />
+          <div className="w-full border-t border-white/10 pt-2 overflow-y-auto max-h-[clamp(200px,38vh,420px)] pr-1">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10.5px] font-sans">
+              <div>
+                <dt className="text-palette-cream/70 text-[10px] leading-tight">Sun azimuth / elevation</dt>
+                <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                  {selectedPoint
+                    ? `${selectedPoint.sun_azimuth_deg.toFixed(2)}° / ${selectedPoint.sun_elevation_deg.toFixed(2)}°`
+                    : timelineLoading
+                      ? "…"
+                      : "N/D"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-palette-cream/70 text-[10px] leading-tight">Sun disk</dt>
+                <dd className="text-[#FAFAFA] font-medium text-[11.5px] leading-snug">
+                  {selectedPoint
+                    ? formatDiskVisibility(
+                        selectedPoint.is_sun_full_disk_visible,
+                        selectedPoint.is_sun_any_part_visible
+                      )
+                    : timelineLoading
+                      ? "…"
+                      : "N/D"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-palette-cream/70 text-[10px] leading-tight">Earth azimuth / elevation</dt>
+                <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                  {selectedPoint
+                    ? `${selectedPoint.earth_azimuth_deg.toFixed(2)}° / ${selectedPoint.earth_elevation_deg.toFixed(2)}°`
+                    : timelineLoading
+                      ? "…"
+                      : "N/D"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-palette-cream/70 text-[10px] leading-tight">Earth disk</dt>
+                <dd className="text-[#FAFAFA] font-medium text-[11.5px] leading-snug">
+                  {selectedPoint
+                    ? formatDiskVisibility(
+                        selectedPoint.is_earth_full_disk_visible,
+                        selectedPoint.is_earth_any_part_visible
+                      )
+                    : timelineLoading
+                      ? "…"
+                      : "N/D"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-palette-cream/70 text-[10px] leading-tight">Distance / RTT</dt>
+                <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                  {selectedPoint
+                    ? `${Math.round(selectedPoint.earth_distance_km).toLocaleString()} km / ${selectedPoint.earth_latency_rtt_sec.toFixed(2)} s`
+                    : timelineLoading
+                      ? "…"
+                      : "N/D"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-palette-cream/70 text-[10px] leading-tight">Earth phase</dt>
+                <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                  {selectedPoint?.earth_phase_angle_deg == null
+                    ? timelineLoading
+                      ? "…"
+                      : "N/D"
+                    : `${selectedPoint.earth_phase_angle_deg.toFixed(2)}°`}
+                </dd>
+              </div>
+
+              <div className="col-span-2 border-t border-white/10 pt-2 mt-1">
+                <dt className="text-palette-cream/70 text-[10px] leading-tight">
+                  Libration at selected UTC
+                </dt>
+                <dd className="text-[#FAFAFA] font-medium text-[11.5px] leading-snug">
+                  {librationLoading
+                    ? "Loading…"
+                    : librationError
+                      ? "Libration unavailable"
+                      : librationData
+                        ? `${librationData.sun_distance_au.toFixed(6)} AU from Sun`
+                        : "N/D"}
+                </dd>
+              </div>
+
+              {selectedPoint && (
+                <>
+                  <div>
+                    <dt className="text-palette-cream/70 text-[10px] leading-tight">
+                      Sun horizon (geometric / terrain)
+                    </dt>
+                    <dd className="text-[#FAFAFA] font-medium text-[11.5px] leading-snug">
+                      {selectedPoint.sun_elevation_deg > 0 ? "Above" : "Below"}
+                      {" / "}
+                      {selectedPoint.is_sun_visible ? "Clear" : "Blocked"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-palette-cream/70 text-[10px] leading-tight">
+                      Earth horizon (geometric / terrain)
+                    </dt>
+                    <dd className="text-[#FAFAFA] font-medium text-[11.5px] leading-snug">
+                      {selectedPoint.earth_elevation_deg > 0 ? "Above" : "Below"}
+                      {" / "}
+                      {selectedPoint.is_earth_visible ? "Clear" : "Blocked"}
+                    </dd>
+                  </div>
+                </>
+              )}
+
+              {librationData && (
+                <>
+                  <div>
+                    <dt className="text-palette-cream/70 text-[10px] leading-tight">
+                      Sub-Earth latitude / longitude
+                    </dt>
+                    <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                      {librationData.sub_earth_lat.toFixed(3)}° /{" "}
+                      {librationData.sub_earth_lon.toFixed(3)}°
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-palette-cream/70 text-[10px] leading-tight">
+                      Sub-Solar latitude / longitude
+                    </dt>
+                    <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                      {librationData.sub_solar_lat.toFixed(3)}° /{" "}
+                      {librationData.sub_solar_lon.toFixed(3)}°
+                    </dd>
+                  </div>
+                </>
+              )}
+
+              {selectedPoint && (
+                <>
+                  <div>
+                    <dt className="text-palette-cream/70 text-[10px] leading-tight">
+                      Next solar transition (hourly estimate)
+                    </dt>
+                    <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                      {nextSunTransition
+                        ? `${selectedPoint.is_sun_visible ? "Sunset" : "Sunrise"} · ${formatExactUtc(nextSunTransition.timestamp_utc)} · ${formatCountdownSeconds(
+                            (Date.parse(nextSunTransition.timestamp_utc) -
+                              Date.parse(selectedPoint.timestamp_utc)) /
+                              1000
+                          )}`
+                        : "N/D · outside forecast"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-palette-cream/70 text-[10px] leading-tight">
+                      Next Earth transition (hourly estimate)
+                    </dt>
+                    <dd className="text-[#FAFAFA] font-medium tabular-nums text-[11.5px] leading-snug">
+                      {nextEarthTransition
+                        ? `${selectedPoint.is_earth_visible ? "Earth set" : "Earth rise"} · ${formatExactUtc(nextEarthTransition.timestamp_utc)} · ${formatCountdownSeconds(
+                            (Date.parse(nextEarthTransition.timestamp_utc) -
+                              Date.parse(selectedPoint.timestamp_utc)) /
+                              1000
+                          )}`
+                        : "N/D · outside forecast"}
+                    </dd>
+                  </div>
+                </>
+              )}
+
+              {librationError && (
+                <div className="col-span-2" role="alert">
+                  <dt className="text-rose-200/80">Libration error</dt>
+                  <dd className="mt-1 flex items-center justify-between gap-2 text-rose-100">
+                    <span className="min-w-0 break-words">{librationError}</span>
+                    <button
+                      type="button"
+                      onClick={() => setLibrationRetryKey((key) => key + 1)}
+                      className="shrink-0 rounded-md border border-rose-200/40 px-2 py-1 hover:bg-rose-200/10"
+                    >
+                      Retry
+                    </button>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        </HudCard>
 
         <MapLegendCard
           mode="detail"
