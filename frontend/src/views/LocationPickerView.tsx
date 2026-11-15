@@ -5,24 +5,24 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import { MoonGlobe } from "../components/3d_canvas/MoonGlobe";
+import { CANDIDATE_LANDING_SITES } from "../data/landingSites";
 import { LandingSite } from "../types";
 import { FigmaDiamondShadow } from "../components/ui/FigmaDiamondShadow";
 import { FigmaLandingButton } from "../components/ui/FigmaLandingButton";
 import {
   CriteriaSlidersCard,
   CriterionSliderItem,
-  CriteriaIconListCard,
-  CriterionIconListItem,
+  MapLegendCard,
+  CandidateSitesListCard,
+  type EvaluatedLandingSite,
 } from "../components/hud";
 
 export type ExplorerPhase = "landing" | "transitioning" | "picker" | "detail";
 
 export interface LocationPickerViewProps {
-  sites: LandingSite[];
-  selectedSiteId: string;
   initialPhase?: ExplorerPhase;
   isDetailActive?: boolean;
-  onSelectSiteDetail?: (siteId: string) => void;
+  onSelectSiteDetail?: (siteSlug: string) => void;
   onDetailMoonArrived?: () => void;
   onBackToPicker?: () => void;
 }
@@ -30,7 +30,7 @@ export interface LocationPickerViewProps {
 interface SceneDirectorProps {
   phase: ExplorerPhase;
   hourOfDay: number;
-  sites: (LandingSite & { isViable?: boolean })[];
+  sites: EvaluatedLandingSite[];
   selectedSiteId: string | null;
   onSelectSite: (site: LandingSite) => void;
   onDetailMoonArrived?: () => void;
@@ -500,8 +500,6 @@ const SceneDirector: React.FC<SceneDirectorProps> = ({
 };
 
 export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
-  sites,
-  selectedSiteId,
   initialPhase = "landing",
   isDetailActive = false,
   onSelectSiteDetail,
@@ -518,62 +516,106 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
     }
   }, [isDetailActive, phase]);
 
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(
+    CANDIDATE_LANDING_SITES[0]?.id || null
+  );
+
   const hourOfDay = 12.0;
-  const filteredSites = sites;
+
+  // Estado de los 3 sliders de criterios (Card Superior Izquierda)
+  const [criteriaValues, setCriteriaValues] = useState<Record<string, number>>({
+    illumination: 68,
+    slope: 42,
+    earthLink: 83,
+  });
+
+  const sliderItems: CriterionSliderItem[] = useMemo(
+    () => [
+      {
+        id: "illumination",
+        label: "Zona de aterrizaje viable ↑",
+        value: criteriaValues.illumination,
+        min: 0,
+        max: 100,
+        step: 1,
+        unit: "%",
+      },
+      {
+        id: "slope",
+        label: "Tolerancia de pendiente ↑",
+        value: criteriaValues.slope,
+        min: 0,
+        max: 100,
+        step: 1,
+        unit: "%",
+      },
+      {
+        id: "earthLink",
+        label: "Ventana de enlace DTE ↑",
+        value: criteriaValues.earthLink,
+        min: 0,
+        max: 100,
+        step: 1,
+        unit: "%",
+      },
+    ],
+    [criteriaValues]
+  );
+
+  const handleCriterionChange = (id: string, newValue: number) => {
+    setCriteriaValues((prev) => ({
+      ...prev,
+      [id]: newValue,
+    }));
+  };
+
+  // Filtrado y evaluación de viabilidad de los sitios candidatos según los sliders
+  const filteredSites: EvaluatedLandingSite[] = useMemo(() => {
+    const minIllum = Math.round(45 + (criteriaValues.illumination / 100) * 40);
+    const maxSlope = 6 + (criteriaValues.slope / 100) * 14;
+    const minDte = Math.round(50 + (criteriaValues.earthLink / 100) * 40);
+
+    return CANDIDATE_LANDING_SITES.map((site) => {
+      const meetsIllum = site.illuminationAvgPercent >= minIllum;
+      const meetsSlope = site.slopeDegrees <= maxSlope;
+      const meetsDte = site.earthVisibilityPercent >= minDte;
+
+      const criteriaMetCount = (meetsIllum ? 1 : 0) + (meetsSlope ? 1 : 0) + (meetsDte ? 1 : 0);
+
+      const viabilityTier: "optimal" | "marginal" | "critical" =
+        criteriaMetCount === 3
+          ? "optimal"
+          : criteriaMetCount === 2
+          ? "marginal"
+          : "critical";
+
+      const isViable = criteriaMetCount >= 2;
+
+      return {
+        ...site,
+        isViable,
+        viabilityTier,
+        criteriaMetCount,
+      };
+    });
+  }, [criteriaValues]);
+
   const selectedSite = useMemo(
     () =>
-      filteredSites.find((candidate) => candidate.id === selectedSiteId) ??
-      filteredSites[0] ??
+      filteredSites.find((s) => s.id === selectedSiteId) ||
+      filteredSites[0] ||
       null,
     [filteredSites, selectedSiteId]
   );
 
-  const sliderItems: CriterionSliderItem[] = useMemo(
-    () => selectedSite
-      ? [
-          {
-            id: "illumination",
-            label: "Solar illumination (site catalog)",
-            value: selectedSite.illuminationAvgPercent,
-            readOnly: true,
-            unit: "%",
-          },
-          {
-            id: "earthLink",
-            label: "Earth visibility (site catalog)",
-            value: selectedSite.earthVisibilityPercent,
-            readOnly: true,
-            unit: "%",
-          },
-        ]
-      : [],
-    [selectedSite]
-  );
-
-  // Lista derecha de 7 filas con iconos a la izquierda (igual a la referencia visual)
-  const rightListItems: CriterionIconListItem[] = useMemo(
-    () =>
-      filteredSites.map((site) => ({
-        id: site.id,
-        label: site.name,
-        value: `Sol ${site.illuminationAvgPercent}% · Tierra ${site.earthVisibilityPercent}%`,
-        icon: "sun",
-        selected: selectedSiteId === site.id,
-      })),
-    [filteredSites, selectedSiteId]
-  );
-
-  const handleRightListClick = (id: string) => {
-    const matchedSite = filteredSites.find((s) => s.id === id);
-    if (matchedSite) {
-      setPhase("detail");
-      onSelectSiteDetail?.(matchedSite.id);
-    }
+  const handleExploreTerrain = (site: LandingSite) => {
+    setSelectedSiteId(site.id);
+    setPhase("detail");
+    onSelectSiteDetail?.(site.slug);
   };
 
   const handleSelectSiteOnGlobe = (site: LandingSite) => {
-    setPhase("detail");
-    onSelectSiteDetail?.(site.id);
+    handleExploreTerrain(site);
   };
 
   // Manejo de la transición al presionar "Aterrizar"
@@ -750,51 +792,51 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
           visibility: phase === "picker" ? "visible" : "hidden",
         }}
       >
-        {/* Botón discreto superior izquierdo para volver al Home */}
+        {/* Botón superior izquierdo para volver al Inicio con padding y espaciado generoso */}
         <button
           type="button"
           onClick={handleBackToLanding}
-          className="absolute left-[64px] top-[18px] z-30 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#3B3B40]/30 hover:bg-[#3B3B40]/50 border border-white/15 text-[#D9CEC5] font-sans text-xs backdrop-blur-md transition-colors cursor-pointer pointer-events-auto"
+          className="absolute left-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(1.2rem,2.5vh,1.75rem)] z-30 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#3B3B40]/45 hover:bg-[#3B3B40]/75 border border-white/20 text-[#D9CEC5] font-sans text-xs backdrop-blur-md transition-all shadow-[0_2px_8px_rgba(0,0,0,0.3)] cursor-pointer pointer-events-auto hover:scale-[1.03] active:scale-[0.98]"
         >
           <span>&larr;</span>
           <span>Inicio</span>
         </button>
 
-        {/* Card Superior Izquierda: Criterios cumplidos (3 Sliders) */}
-        <aside className="absolute left-[64px] top-[56px] z-20 pointer-events-none">
+        {/* Card Superior Izquierda: Criterios cumplidos (3 Sliders) con separación suficiente respecto al botón */}
+        <aside className="absolute left-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] z-20 flex flex-col gap-3 pointer-events-none">
           <CriteriaSlidersCard
-            title="Site catalog data"
+            title="Criterios cumplidos"
             items={sliderItems}
+            onChange={handleCriterionChange}
+            className="w-[clamp(270px,23vw,330px)] pointer-events-auto"
+          />
+
+          {/* Nueva Card de Leyenda de Indicadores (Espacio Amarillo) */}
+          <MapLegendCard className="w-[clamp(270px,23vw,330px)] pointer-events-auto" />
+        </aside>
+
+        {/* Card Superior Derecha: Listado Clasificado de Sitios Candidatos */}
+        <aside className="absolute right-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] z-20 pointer-events-none">
+          <CandidateSitesListCard
+            title="Criterios cumplidos"
+            sites={filteredSites}
+            selectedSiteId={selectedSiteId}
+            onSelectSite={(site) => setSelectedSiteId(site.id)}
+            className="pointer-events-auto"
           />
         </aside>
 
-        {/* Card Superior Derecha: Lista de Zonas y Telemetría con Iconos a la izquierda */}
-        <aside className="absolute right-[64px] top-[56px] z-20 pointer-events-none">
-          <CriteriaIconListCard
-            title="Lunar sites"
-            headerAlign="right"
-            iconPosition="left"
-            items={rightListItems}
-            onToggleItem={handleRightListClick}
-            footerAction={
-              selectedSite && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhase("detail");
-                    onSelectSiteDetail?.(selectedSite.id);
-                  }}
-                  className="w-full mt-1 py-2 px-3 rounded-[12px] bg-[#D9CEC5]/20 hover:bg-[#D9CEC5]/30 border border-white/20 font-sans font-medium text-[12px] text-[#FAFAFA] flex items-center justify-between transition-all cursor-pointer"
-                >
-                  <span className="truncate">
-                    Explorar terreno: {selectedSite.name}
-                  </span>
-                  <span aria-hidden="true">&rarr;</span>
-                </button>
-              )
-            }
-          />
-        </aside>
+        {/* Botón CTA "Explorar terreno" en la esquina inferior derecha imitando el botón de Landing */}
+        {selectedSite && (
+          <aside className="absolute right-[clamp(1.5rem,4.4vw,4rem)] bottom-[clamp(1.5rem,4vh,3rem)] z-30 pointer-events-auto">
+            <FigmaLandingButton
+              onClick={() => handleExploreTerrain(selectedSite)}
+              label="Explorar terreno"
+              textColor="text-[#FAFAFA]"
+              className="px-8 py-2.5 min-w-[190px] h-[44px] shadow-[0_0_20px_rgba(217,206,197,0.22)]"
+            />
+          </aside>
+        )}
       </div>
     </div>
   );

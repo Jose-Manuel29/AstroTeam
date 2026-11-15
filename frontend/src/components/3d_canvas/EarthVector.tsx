@@ -2,7 +2,7 @@
 
 import React, { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Billboard, Line, Text } from "@react-three/drei";
+import { Html, Line } from "@react-three/drei";
 import * as THREE from "three";
 import { useSiteContext, type PresetSite } from "@/lib/context/SiteContext";
 import { TERRAIN, latLonToPlane } from "@/lib/geo/polarStereo";
@@ -39,7 +39,7 @@ export const EarthVector: React.FC<EarthVectorProps> = ({
   origin = [0, 0, 0],
   targetDirection = [0, 0, 0],
   terrainSize = TERRAIN.size,
-  color = "#38bdf8",
+  color = "#38BDF8",
   label = "TIERRA",
   lineWidth = 1.6,
   dashSize = 1.2,
@@ -75,7 +75,11 @@ export const EarthVector: React.FC<EarthVectorProps> = ({
     () => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir),
     [dir]
   );
-  const labelPos = useMemo(() => end.clone().add(dir.clone().multiplyScalar(2.2)), [end, dir]);
+  // Posicionada al doble de distancia sobre la superficie lunar (~11.0 u) a lo largo del haz hacia la Tierra
+  const labelPos = useMemo(() => {
+    const offsetDistance = Math.min(11.0, length * 0.44);
+    return start.clone().add(dir.clone().multiplyScalar(offsetDistance));
+  }, [start, dir, length]);
 
   // Flujo de los guiones desde el sitio lunar hacia la Tierra
   useFrame((_, delta) => {
@@ -112,20 +116,20 @@ export const EarthVector: React.FC<EarthVectorProps> = ({
         <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
 
-      <Billboard position={labelPos}>
-        <Text
-          font={SPACE_MONO_TTF}
-          fontSize={1.6}
-          color={color}
-          anchorX="center"
-          anchorY="middle"
-          letterSpacing={0.15}
-          outlineWidth={0.06}
-          outlineColor="#000000"
-        >
-          {label}
-        </Text>
-      </Billboard>
+      {/* Leyenda interactiva visible más abajo a lo largo del haz con viñeta circular resaltada */}
+      <Html
+        position={labelPos}
+        center
+        zIndexRange={[5, 0]}
+        style={{ pointerEvents: "none" }}
+      >
+        <div className="flex items-center gap-1.5 whitespace-nowrap px-2.5 py-0.5 rounded-full bg-[#0D0D0D]/90 border border-[#38BDF8]/60 backdrop-blur-md shadow-[0_0_14px_rgba(56,189,248,0.45)] select-none pointer-events-none">
+          <span className="font-heading font-bold text-[11px] tracking-widest uppercase text-[#38BDF8]">
+            {label}
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#38BDF8] shadow-[0_0_8px_#38BDF8] inline-block" />
+        </div>
+      </Html>
     </group>
   );
 };

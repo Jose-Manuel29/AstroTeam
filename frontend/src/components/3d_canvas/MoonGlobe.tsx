@@ -10,7 +10,7 @@ import { LandingSite } from "../../types";
 const NATIVE_MOON_RADIUS = 1.27186;
 
 interface LandingSitePinProps {
-  site: LandingSite & { isViable?: boolean };
+  site: LandingSite & { isViable?: boolean; viabilityTier?: "optimal" | "marginal" | "critical" };
   isSelected: boolean;
   onSelectSite?: (site: LandingSite) => void;
   position: [number, number, number];
@@ -226,10 +226,14 @@ const LandingSitePin: React.FC<LandingSitePinProps> = ({
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  !isViable
+                  site.viabilityTier === "optimal"
+                    ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
+                    : site.viabilityTier === "marginal"
+                    ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]"
+                    : site.viabilityTier === "critical"
+                    ? "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.8)]"
+                    : !isViable
                     ? "bg-rose-400"
-                    : isSelected
-                    ? "bg-emerald-400"
                     : "bg-emerald-400"
                 }`}
               />
@@ -246,7 +250,7 @@ const LandingSitePin: React.FC<LandingSitePinProps> = ({
 
 export interface MoonGlobeProps {
   modelPath?: string;
-  sites?: (LandingSite & { isViable?: boolean })[];
+  sites?: (LandingSite & { isViable?: boolean; viabilityTier?: "optimal" | "marginal" | "critical" })[];
   selectedSiteId?: string | null;
   onSelectSite?: (site: LandingSite) => void;
   scale?: number;

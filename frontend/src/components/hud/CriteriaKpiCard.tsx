@@ -21,7 +21,7 @@ export const CriteriaKpiCard: React.FC<CriteriaKpiCardProps> = ({
   unit = "%",
   subtitle = "Viable landing zone ↑",
   badgeText,
-  className = "w-[clamp(260px,23.5vw,336px)]",
+  className = "w-fit",
 }) => {
   const formattedValue =
     typeof value === "number" ? `${value}${unit}` : value;
@@ -31,14 +31,14 @@ export const CriteriaKpiCard: React.FC<CriteriaKpiCardProps> = ({
       variant="slate"
       padding="md"
       ariaLabel={title}
-      className={`justify-between gap-[clamp(0.2rem,0.65vh,0.5rem)] ${className}`}
+      className={`justify-between gap-[clamp(0.12rem,0.45vh,0.35rem)] ${className}`}
     >
       <HudCardHeader
         title={title}
         size="md"
         action={
           badgeText ? (
-            <span className="px-[0.5vw] py-[0.2vh] rounded-full bg-white/10 border border-white/15 font-sans font-medium text-[clamp(0.55rem,1.05vh,0.625rem)] tracking-wider uppercase text-[#D9CEC5]">
+            <span className="px-[0.5vw] py-[0.15vh] rounded-full bg-palette-cream/15 border border-palette-cream/25 font-sans font-medium text-[clamp(0.52rem,0.98vh,0.625rem)] tracking-wider uppercase text-palette-cream">
               {badgeText}
             </span>
           ) : undefined
@@ -46,8 +46,8 @@ export const CriteriaKpiCard: React.FC<CriteriaKpiCardProps> = ({
       />
 
       {/* Valor central KPI escalado proporcionalmente a la altura de pantalla */}
-      <div className="flex items-center justify-center py-[clamp(0.1rem,0.45vh,0.5rem)] w-full">
-        <span className="font-heading font-medium text-[clamp(2.5rem,7.2vh,4.75rem)] leading-none text-center text-[#FAFAFA] tabular-nums tracking-tight">
+      <div className="flex items-center justify-center py-[clamp(0.08rem,0.35vh,0.35rem)] w-auto px-1">
+        <span className="font-heading font-medium text-[clamp(2.1rem,5.6vh,4.25rem)] leading-none text-center text-[#FAFAFA] tabular-nums tracking-tight">
           {formattedValue}
         </span>
       </div>

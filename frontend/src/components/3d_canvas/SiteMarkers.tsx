@@ -67,13 +67,13 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
 
   return (
     <group position={[p.x, y, p.z]}>
-      {/* Línea vertical blanca esbelta con emisividad */}
+      {/* Línea vertical en crema lunar con brillo sutil */}
       <mesh position={[0, currentHeight / 2, 0]}>
         <cylinderGeometry args={[radius, radius, currentHeight, 8]} />
         <meshStandardMaterial
-          color="#ffffff"
-          emissive="#ffffff"
-          emissiveIntensity={2}
+          color="#D9CEC5"
+          emissive="#A6948A"
+          emissiveIntensity={1.2}
           roughness={0.2}
           metalness={0}
           toneMapped={false}
@@ -101,7 +101,7 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
           {/* Nombre de la zona: fuente Space Mono Regular (400), ancho 10rem */}
           <span
             className={`block w-full break-words text-[0.75rem] font-normal leading-tight tracking-wider uppercase transition-colors ${
-              active ? "text-cyan-300" : "text-white"
+              active ? "text-[#D9CEC5]" : "text-[#FAFAFA]"
             }`}
           >
             {site.name}
@@ -109,7 +109,7 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
 
           {/* Tamaño en km: tamaño de fuente proporcional en 'em' respecto al rem del título */}
           <span
-            className="block w-full font-normal tracking-widest text-amber-300/90 leading-tight mt-0.5"
+            className="block w-full font-normal tracking-widest text-[#A6948A] leading-tight mt-0.5"
             style={{ fontSize: "0.75em" }}
           >
             ⌀ {zoneKm} KM

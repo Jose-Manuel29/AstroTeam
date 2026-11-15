@@ -52,7 +52,7 @@ export interface SiteZonesOverlayProps {
   terrainSegments?: number;
   displacementScale?: number;
   displacementBias?: number;
-  /** Color temático de la zona. Por defecto: #FF9F1C (Ámbar) */
+  /** Color temático de la zona. Por defecto: #D9CEC5 (palette-cream Lunar Regolith) */
   color?: THREE.ColorRepresentation;
   /** Opacidad máxima en el borde exterior (el centro siempre es 0). */
   edgeOpacity?: number;
@@ -208,7 +208,7 @@ export const SiteZonesOverlay: React.FC<SiteZonesOverlayProps> = ({
   terrainSegments = TERRAIN.segments,
   displacementScale = TERRAIN.displacementScale,
   displacementBias = TERRAIN.displacementBias,
-  color = "#FF9F1C",
+  color = "#D9CEC5",
   edgeOpacity = 0.7,
   offset: offsetProp,
   gradientPower = 1.6,

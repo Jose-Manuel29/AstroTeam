@@ -39,9 +39,9 @@ const VARIANT_CLASSES: Record<HudCardVariant, string> = {
 
 const PADDING_CLASSES: Record<HudCardPadding, string> = {
   none: "p-0",
-  sm: "px-[clamp(0.75rem,1.1vw,1rem)] py-[clamp(0.4rem,0.95vh,0.75rem)]",
-  md: "px-[clamp(0.875rem,1.35vw,1.25rem)] py-[clamp(0.5rem,1.25vh,1rem)]",
-  lg: "px-[clamp(1rem,1.6vw,1.5rem)] py-[clamp(0.65rem,1.5vh,1.25rem)]",
+  sm: "px-[clamp(0.6rem,1vw,0.875rem)] py-[clamp(0.3rem,0.85vh,0.65rem)]",
+  md: "px-[clamp(0.75rem,1.25vw,1.15rem)] py-[clamp(0.35rem,1.05vh,0.85rem)]",
+  lg: "px-[clamp(0.875rem,1.45vw,1.35rem)] py-[clamp(0.5rem,1.3vh,1.1rem)]",
 };
 
 /**
@@ -88,9 +88,9 @@ export interface HudCardHeaderProps {
 }
 
 const HEADER_SIZE_CLASSES = {
-  sm: "text-[clamp(0.8rem,1.55vh,0.9375rem)] leading-[1.25]",
-  md: "text-[clamp(0.875rem,1.75vh,1.0625rem)] leading-[1.25]",
-  lg: "text-[clamp(0.95rem,2.05vh,1.25rem)] leading-[1.25]",
+  sm: "text-[clamp(0.72rem,1.35vh,0.875rem)] leading-tight",
+  md: "text-[clamp(0.78rem,1.55vh,1rem)] leading-tight",
+  lg: "text-[clamp(0.85rem,1.75vh,1.15rem)] leading-tight",
 };
 
 /**

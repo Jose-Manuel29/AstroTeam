@@ -6,3 +6,5 @@ export * from "./CriteriaGridCard";
 export * from "./CriteriaDaysKpiCard";
 export * from "./TopTemporalController";
 export * from "./SouthPoleMinimap";
+export * from "./MapLegendCard";
+export * from "./CandidateSitesListCard";

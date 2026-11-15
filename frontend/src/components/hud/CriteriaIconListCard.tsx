@@ -58,14 +58,14 @@ export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
   items,
   onToggleItem,
   footerAction,
-  className = "w-[clamp(260px,23.5vw,336px)]",
+  className = "w-full",
 }) => {
   const renderIcon = (icon: CriterionIconType | React.ReactNode) => {
     if (typeof icon !== "string") return icon;
 
     const iconProps = {
       weight: "regular" as const,
-      className: "w-full h-full text-[#E4E3E8]",
+      className: "w-full h-full text-palette-cream",
     };
 
     switch (icon) {
@@ -94,7 +94,7 @@ export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
       variant="ochre"
       padding="md"
       ariaLabel={title}
-      className={`gap-[clamp(0.35rem,0.95vh,0.75rem)] ${className}`}
+      className={`gap-[clamp(0.25rem,0.75vh,0.65rem)] ${className}`}
     >
       <HudCardHeader
         title={title}
@@ -103,7 +103,7 @@ export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
         size="md"
       />
 
-      <HudCardBody className="gap-[clamp(0.18rem,0.5vh,0.375rem)]">
+      <HudCardBody className="gap-[clamp(0.12rem,0.4vh,0.32rem)] max-h-[clamp(115px,24vh,230px)] overflow-y-auto overflow-x-hidden pr-0.5">
         {items.map((item) => {
           const isActive = item.active !== false;
           const isSelected = Boolean(item.selected);
@@ -115,8 +115,8 @@ export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
               onClick={() => onToggleItem?.(item.id)}
               className={`
                 flex items-center justify-between gap-[0.75vw]
-                px-[clamp(0.45rem,0.75vw,0.625rem)] py-[clamp(0.22rem,0.65vh,0.5rem)] w-full
-                border rounded-[clamp(6px,1vh,10px)] transition-all cursor-pointer
+                px-[clamp(0.35rem,0.65vw,0.55rem)] py-[clamp(0.16rem,0.48vh,0.38rem)] w-full
+                border rounded-[clamp(6px,0.8vh,8px)] transition-all cursor-pointer
                 ${
                   isSelected
                     ? "bg-white/15 border-white/25"
@@ -127,34 +127,34 @@ export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
             >
               {iconPosition === "left" ? (
                 <>
-                  <span className="w-[clamp(15px,2vh,22px)] h-[clamp(15px,2vh,22px)] flex items-center justify-center shrink-0">
+                  <span className="w-[clamp(13px,1.7vh,18px)] h-[clamp(13px,1.7vh,18px)] flex items-center justify-center shrink-0">
                     {renderIcon(item.icon)}
                   </span>
 
                   <div className="flex items-center justify-end gap-2 min-w-0 flex-1 text-right">
                     {item.value !== undefined && (
-                      <span className="font-sans font-medium text-[clamp(0.65rem,1.2vh,0.72rem)] leading-[1.25] text-[#D9CEC5] tabular-nums shrink-0">
+                      <span className="font-sans font-medium text-[clamp(0.62rem,1.15vh,0.72rem)] leading-tight text-palette-cream tabular-nums shrink-0">
                         {item.value}
                       </span>
                     )}
-                    <span className="font-sans font-light text-[clamp(0.7rem,1.3vh,0.78125rem)] leading-[1.25] text-[#FAFAFA] truncate">
+                    <span className="font-sans font-light text-[clamp(0.66rem,1.2vh,0.78125rem)] leading-tight text-[#FAFAFA] truncate">
                       {item.label}
                     </span>
                   </div>
                 </>
               ) : (
                 <>
-                  <span className="font-sans font-light text-[clamp(0.7rem,1.3vh,0.78125rem)] leading-[1.25] text-[#FAFAFA] truncate text-left">
+                  <span className="font-sans font-light text-[clamp(0.66rem,1.2vh,0.78125rem)] leading-tight text-[#FAFAFA] truncate text-left">
                     {item.label}
                   </span>
 
-                  <div className="flex items-center gap-[0.6vw] shrink-0">
+                  <div className="flex items-center gap-[0.5vw] shrink-0">
                     {item.value !== undefined && (
-                      <span className="font-sans font-medium text-[clamp(0.68rem,1.25vh,0.75rem)] leading-[1.25] text-[#D9CEC5] tabular-nums">
+                      <span className="font-sans font-medium text-[clamp(0.62rem,1.15vh,0.72rem)] leading-tight text-palette-cream tabular-nums">
                         {item.value}
                       </span>
                     )}
-                    <span className="w-[clamp(15px,2vh,22px)] h-[clamp(15px,2vh,22px)] flex items-center justify-center">
+                    <span className="w-[clamp(13px,1.7vh,18px)] h-[clamp(13px,1.7vh,18px)] flex items-center justify-center">
                       {renderIcon(item.icon)}
                     </span>
                   </div>
@@ -165,7 +165,7 @@ export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
         })}
       </HudCardBody>
 
-      {footerAction && <div className="pt-[0.3vh] w-full">{footerAction}</div>}
+      {footerAction && <div className="pt-[0.2vh] w-full">{footerAction}</div>}
     </HudCard>
   );
 };

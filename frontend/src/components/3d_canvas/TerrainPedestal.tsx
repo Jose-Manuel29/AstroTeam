@@ -32,8 +32,8 @@ export const TerrainPedestal: React.FC<TerrainPedestalProps> = ({
   displacementScale,
   displacementBias,
   depth = 4,
-  color = "#0b0e14",
-  rimColor = "#00e5ff",
+  color = "#0D0D0D",
+  rimColor = "#A6948A",
   rimOpacity = 0.55,
 }) => {
   const heightAt = useTerrainHeight(demUrl, displacementScale, displacementBias);

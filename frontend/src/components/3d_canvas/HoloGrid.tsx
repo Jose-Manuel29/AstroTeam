@@ -18,10 +18,10 @@ export interface HoloGridProps {
 export const HoloGrid: React.FC<HoloGridProps> = ({
   size = 100,
   divisions = 50,
-  centerColor = "#00ffff",
-  gridColor = "#004444",
+  centerColor = "#A6948A",
+  gridColor = "#3B3B40",
   height = 25,
-  opacity = 0.12,
+  opacity = 0.14,
   visible = true,
 }) => {
   const grid = useMemo(

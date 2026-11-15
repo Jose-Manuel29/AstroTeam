@@ -14,6 +14,8 @@ export const DEFAULT_ALBEDO_URL = "/textures/albedo_wac_delighted.webp";
 // Pre-carga las texturas base para acelerar la transición hacia SiteDetailView
 useLoader.preload(THREE.TextureLoader, [DEFAULT_ALBEDO_URL, DEM_URL, NORMAL_URL]);
 
+export type DioramaCutoutShape = "square" | "circle";
+
 export interface LunarSurfaceProps {
   /** Albedo WAC sin sombras fotográficas (delight_wac.py). */
   mapUrl?: string;
@@ -31,8 +33,10 @@ export interface LunarSurfaceProps {
   wireframe?: boolean;
   /** Sitio seleccionado (si se omite, se lee de useSiteContext). */
   selectedSite?: PresetSite | null;
-  /** Radio del recorte del diorama holográfico en unidades (15 u ≈ 135 km). */
+  /** Radio / semi-lado del recorte del diorama aislado (15 u ≈ 135 km). */
   focusRadius?: number;
+  /** Forma geométrica del recorte del diorama aislado ("square" por defecto, o "circle"). */
+  cutoutShape?: DioramaCutoutShape;
   /** Bloque sólido (pedestal) bajo el relieve, estilo maqueta. */
   showPedestal?: boolean;
   pedestalDepth?: number;
@@ -46,12 +50,14 @@ interface CutoutUniforms {
   uFocusPos: { value: THREE.Vector2 };
   uFocusRadius: { value: number };
   uFocusActive: { value: number };
+  uFocusShape: { value: number };
 }
 
 interface DioramaPedestalProps {
   centerX: number;
   centerZ: number;
   radius: number;
+  shape?: DioramaCutoutShape;
   terrainSize: number;
   demUrl: string;
   displacementScale: number;
@@ -60,15 +66,17 @@ interface DioramaPedestalProps {
 }
 
 /**
- * Pedestal cilíndrico del Diorama Aislado (#050505 negro mate):
- * Sigue a `selectedSite` en (x, z) con radio `uFocusRadius`. Su borde superior se
- * adapta a la cota real del DEM a lo largo del perímetro circular para que parezca
- * un bloque sólido extraído directamente del Polo Sur sin huecos ni intersecciones.
+ * Pedestal del Diorama Aislado (#050505 negro mate):
+ * Sigue a `selectedSite` en (x, z) con dimensiones acordes a `uFocusRadius`.
+ * Soporta recorte cuadrado (bloque cúbico de maqueta) o circular (cilíndrico).
+ * Su borde superior se adapta a la cota real del DEM a lo largo del perímetro
+ * para que parezca un bloque sólido extraído directamente del Polo Sur lunar.
  */
 const DioramaPedestal: React.FC<DioramaPedestalProps> = ({
   centerX,
   centerZ,
   radius,
+  shape = "square",
   terrainSize,
   demUrl,
   displacementScale,
@@ -76,12 +84,66 @@ const DioramaPedestal: React.FC<DioramaPedestalProps> = ({
   depth,
 }) => {
   const heightAt = useTerrainHeight(demUrl, displacementScale, displacementBias);
-  // Radio efectivo ligeramente dentro del borde smoothstep para evitar flecos flotantes
-  const r = radius * 0.9;
   const baseY = displacementBias - depth;
-  const radialSegments = 96;
 
-  const { wallGeo, rimPoints } = useMemo(() => {
+  const { wallGeo, rimPoints, halfSide } = useMemo(() => {
+    if (shape === "square") {
+      const s = radius * 0.96;
+      const segmentsPerSide = 24;
+      const positions: number[] = [];
+      const normals: number[] = [];
+      const indices: number[] = [];
+      const rim: [number, number, number][] = [];
+
+      // 4 caras del prisma cuadrangular con normales exactas para aristas vivas
+      const sides: [[number, number], [number, number], [number, number, number]][] = [
+        [[-s, -s], [s, -s], [0, 0, -1]], // Cara Sur
+        [[s, -s], [s, s], [1, 0, 0]],    // Cara Este
+        [[s, s], [-s, s], [0, 0, 1]],    // Cara Norte
+        [[-s, s], [-s, -s], [-1, 0, 0]], // Cara Oeste
+      ];
+
+      let vCount = 0;
+      for (const [p1, p2, norm] of sides) {
+        const startV = vCount;
+        for (let i = 0; i <= segmentsPerSide; i++) {
+          const t = i / segmentsPerSide;
+          const dx = p1[0] + (p2[0] - p1[0]) * t;
+          const dz = p1[1] + (p2[1] - p1[1]) * t;
+          const wx = centerX + dx;
+          const wz = centerZ + dz;
+
+          const u = THREE.MathUtils.clamp(0.5 + wx / terrainSize, 0, 1);
+          const v = THREE.MathUtils.clamp(0.5 - wz / terrainSize, 0, 1);
+          const topY = heightAt(u, v) - 0.03;
+
+          positions.push(dx, topY, dz);
+          positions.push(dx, baseY, dz);
+          normals.push(norm[0], norm[1], norm[2]);
+          normals.push(norm[0], norm[1], norm[2]);
+          rim.push([dx, baseY, dz]);
+          vCount += 2;
+        }
+
+        for (let i = 0; i < segmentsPerSide; i++) {
+          const a = startV + i * 2;
+          indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+      }
+
+      if (rim.length > 0) rim.push(rim[0]);
+
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      g.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+      g.setIndex(indices);
+
+      return { wallGeo: g, rimPoints: rim, halfSide: s };
+    }
+
+    // Modo circular / cilíndrico
+    const r = radius * 0.9;
+    const radialSegments = 96;
     const positions: number[] = [];
     const indices: number[] = [];
     const rim: [number, number, number][] = [];
@@ -112,34 +174,38 @@ const DioramaPedestal: React.FC<DioramaPedestalProps> = ({
     g.setIndex(indices);
     g.computeVertexNormals();
 
-    return { wallGeo: g, rimPoints: rim };
-  }, [centerX, centerZ, r, terrainSize, heightAt, baseY]);
+    return { wallGeo: g, rimPoints: rim, halfSide: r };
+  }, [centerX, centerZ, radius, shape, terrainSize, heightAt, displacementBias, depth]);
 
   return (
     <group position={[centerX, 0, centerZ]}>
-      {/* Pared cilíndrica acoplada al relieve superior */}
+      {/* Pared vertical del bloque diorama acoplada al relieve superior */}
       <mesh geometry={wallGeo} castShadow receiveShadow>
         <meshStandardMaterial
-          color="#050505"
+          color="#0D0D0D"
           roughness={0.95}
           metalness={0.05}
           side={THREE.DoubleSide}
         />
       </mesh>
 
-      {/* Base cilíndrica inferior en negro mate (#050505) */}
+      {/* Base inferior en negro mate (#0D0D0D) */}
       <mesh position={[0, baseY - 0.1, 0]} receiveShadow>
-        <cylinderGeometry args={[r, r, 0.2, radialSegments]} />
-        <meshStandardMaterial color="#050505" roughness={0.95} metalness={0.05} />
+        {shape === "square" ? (
+          <boxGeometry args={[2 * halfSide, 0.2, 2 * halfSide]} />
+        ) : (
+          <cylinderGeometry args={[halfSide, halfSide, 0.2, 96]} />
+        )}
+        <meshStandardMaterial color="#0D0D0D" roughness={0.95} metalness={0.05} />
       </mesh>
 
-      {/* Aro holográfico sutil en la base del cilindro */}
+      {/* Marco / Aro holográfico sutil en la base (palette-ochre) */}
       <Line
         points={rimPoints}
-        color="#00ffff"
+        color="#A6948A"
         lineWidth={1.2}
         transparent
-        opacity={0.45}
+        opacity={0.5}
       />
     </group>
   );
@@ -164,6 +230,7 @@ export const LunarSurface: React.FC<LunarSurfaceProps> = ({
   wireframe = false,
   selectedSite: selectedSiteProp,
   focusRadius = 15.0,
+  cutoutShape = "square",
   showPedestal = true,
   pedestalDepth = 4,
   pedestalColor = "#0b0e14",
@@ -206,21 +273,23 @@ export const LunarSurface: React.FC<LunarSurfaceProps> = ({
       uFocusPos: { value: new THREE.Vector2(0, 0) },
       uFocusRadius: { value: focusRadius },
       uFocusActive: { value: 0 },
+      uFocusShape: { value: cutoutShape === "circle" ? 0.0 : 1.0 },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
-  // Actualiza los uniforms reactivamente cuando cambia el sitio o el radio
+  // Actualiza los uniforms reactivamente cuando cambia el sitio, el radio o la forma
   useEffect(() => {
     if (focusCoords) {
       cutoutUniforms.uFocusPos.value.set(focusCoords.x, focusCoords.z);
       cutoutUniforms.uFocusRadius.value = focusRadius;
       cutoutUniforms.uFocusActive.value = 1.0;
+      cutoutUniforms.uFocusShape.value = cutoutShape === "circle" ? 0.0 : 1.0;
     } else {
       cutoutUniforms.uFocusActive.value = 0.0;
     }
-  }, [focusCoords, focusRadius, cutoutUniforms]);
+  }, [focusCoords, focusRadius, cutoutShape, cutoutUniforms]);
 
   // Material estándar del terreno con inyección GLSL para el recorte del diorama
   const surfaceMaterial = useMemo(() => {
@@ -246,7 +315,7 @@ export const LunarSurface: React.FC<LunarSurfaceProps> = ({
         .replace(
           "#include <project_vertex>",
           `#include <project_vertex>
-vWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
+vWorldXZ = vec2(transformed.x, -transformed.y);`
         );
 
       shader.fragmentShader = shader.fragmentShader
@@ -256,20 +325,24 @@ vWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
 varying vec2 vWorldXZ;
 uniform vec2 uFocusPos;
 uniform float uFocusRadius;
-uniform float uFocusActive;`
+uniform float uFocusActive;
+uniform float uFocusShape;`
         )
         .replace(
           "#include <dithering_fragment>",
           `#include <dithering_fragment>
 if (uFocusActive > 0.5) {
-  float dist = distance(vWorldXZ, uFocusPos);
-  float focusAlpha = 1.0 - smoothstep(uFocusRadius * 0.85, uFocusRadius, dist);
+  float dist = uFocusShape > 0.5
+    ? max(abs(vWorldXZ.x - uFocusPos.x), abs(vWorldXZ.y - uFocusPos.y))
+    : distance(vWorldXZ, uFocusPos);
+  float edgeStart = uFocusShape > 0.5 ? (uFocusRadius * 0.96) : (uFocusRadius * 0.85);
+  float focusAlpha = 1.0 - smoothstep(edgeStart, uFocusRadius, dist);
   gl_FragColor.a *= focusAlpha;
   if (gl_FragColor.a < 0.01) discard;
 }`
         );
     };
-    mat.customProgramCacheKey = () => "lunar-surface-diorama-cutout-v1";
+    mat.customProgramCacheKey = () => "lunar-surface-diorama-cutout-v2";
     return mat;
   }, [
     colorMap,
@@ -301,7 +374,7 @@ if (uFocusActive > 0.5) {
         .replace(
           "#include <project_vertex>",
           `#include <project_vertex>
-vWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
+vWorldXZ = vec2(transformed.x, -transformed.y);`
         );
 
       shader.fragmentShader = shader.fragmentShader
@@ -311,15 +384,21 @@ vWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
 varying vec2 vWorldXZ;
 uniform vec2 uFocusPos;
 uniform float uFocusRadius;
-uniform float uFocusActive;`
+uniform float uFocusActive;
+uniform float uFocusShape;`
         )
         .replace(
           "gl_FragColor = packDepthToRGBA( fragCoordZ );",
-          `if (uFocusActive > 0.5 && distance(vWorldXZ, uFocusPos) > uFocusRadius) discard;
+          `if (uFocusActive > 0.5) {
+  float dist = uFocusShape > 0.5
+    ? max(abs(vWorldXZ.x - uFocusPos.x), abs(vWorldXZ.y - uFocusPos.y))
+    : distance(vWorldXZ, uFocusPos);
+  if (dist > uFocusRadius) discard;
+}
 gl_FragColor = packDepthToRGBA( fragCoordZ );`
         );
     };
-    mat.customProgramCacheKey = () => "lunar-depth-diorama-cutout-v1";
+    mat.customProgramCacheKey = () => "lunar-depth-diorama-cutout-v2";
     return mat;
   }, [displacementMap, displacementScale, displacementBias, cutoutUniforms]);
 
@@ -335,13 +414,14 @@ gl_FragColor = packDepthToRGBA( fragCoordZ );`
         <planeGeometry args={[size, size, segments, segments]} />
       </mesh>
 
-      {/* Pedestal: Cilíndrico de Diorama (#050505) si hay sitio aislado; completo si no */}
+      {/* Pedestal: Bloque prismático cuadrangular o cilíndrico según cutoutShape */}
       {showPedestal &&
         (focusCoords ? (
           <DioramaPedestal
             centerX={focusCoords.x}
             centerZ={focusCoords.z}
             radius={focusRadius}
+            shape={cutoutShape}
             terrainSize={size}
             demUrl={demUrl}
             displacementScale={displacementScale}
