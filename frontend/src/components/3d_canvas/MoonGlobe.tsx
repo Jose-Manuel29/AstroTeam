@@ -2,7 +2,7 @@
 
 import React, { useRef, useMemo, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF, Html } from "@react-three/drei";
+import { useGLTF, Html, Line } from "@react-three/drei";
 import * as THREE from "three";
 import { LandingSite } from "../../types";
 
@@ -344,6 +344,38 @@ export const MoonGlobe: React.FC<MoonGlobeProps> = ({
     }
   });
 
+  // Puntos del Meridiano 1 (0° - 180° en el plano X-Y) que cruza el Polo Sur (-Y)
+  const meridian1Points = useMemo(() => {
+    const pts: [number, number, number][] = [];
+    const R = NATIVE_MOON_RADIUS * 1.0035;
+    const maxAngle = (78 * Math.PI) / 180; // Abarca 78° hacia cada hemisferio desde el polo sur
+    const steps = 64;
+    for (let i = 0; i <= steps; i++) {
+      const alpha = -maxAngle + (2 * maxAngle * i) / steps;
+      const x = R * Math.sin(alpha);
+      const y = -R * Math.cos(alpha);
+      const z = 0;
+      pts.push([x, y, z]);
+    }
+    return pts;
+  }, []);
+
+  // Puntos del Meridiano 2 (90° - 270° en el plano Z-Y) perpendicular al Meridiano 1
+  const meridian2Points = useMemo(() => {
+    const pts: [number, number, number][] = [];
+    const R = NATIVE_MOON_RADIUS * 1.0035;
+    const maxAngle = (78 * Math.PI) / 180;
+    const steps = 64;
+    for (let i = 0; i <= steps; i++) {
+      const alpha = -maxAngle + (2 * maxAngle * i) / steps;
+      const x = 0;
+      const y = -R * Math.cos(alpha);
+      const z = R * Math.sin(alpha);
+      pts.push([x, y, z]);
+    }
+    return pts;
+  }, []);
+
   return (
     <group position={position} rotation={rotation} scale={[scale, scale, scale]}>
       {/* Halo sutil de horizonte para acentuar la curvatura contra el fondo estelar */}
@@ -402,45 +434,32 @@ export const MoonGlobe: React.FC<MoonGlobeProps> = ({
           </group>
         )}
 
-        {/* Eje polar lunar punteado y etiqueta "Polo Sur" */}
+        {/* Meridianos ortogonales en cruz que intersectan en el eje polar (Polo Sur) */}
         {showSites && (
           <group>
-            {/* Segmentos de línea punteada a lo largo del eje polar Y (hacia el exterior del Polo Sur) */}
-            {Array.from({ length: 15 }).map((_, i) => {
-              const segLength = 0.048;
-              const gap = 0.032;
-              const yPos = -(NATIVE_MOON_RADIUS + 0.04 + i * (segLength + gap));
-              return (
-                <mesh key={i} position={[0, yPos, 0]}>
-                  <cylinderGeometry args={[0.0035, 0.0035, segLength, 8]} />
-                  <meshBasicMaterial
-                    color="#3B3B40"
-                    transparent
-                    opacity={Math.max(0.4, 0.95 - (i / 15) * 0.45)}
-                  />
-                </mesh>
-              );
-            })}
+            {/* Meridiano 1: 0° - 180° en color palette-cream */}
+            <Line
+              points={meridian1Points}
+              color="#D9CEC5"
+              lineWidth={1.5}
+              transparent
+              opacity={0.85}
+            />
 
-            {/* Marcador esférico luminoso en el extremo del eje */}
-            <mesh position={[0, -(NATIVE_MOON_RADIUS + 0.04 + 15 * 0.08 + 0.02), 0]}>
-              <sphereGeometry args={[0.012, 16, 16]} />
-              <meshBasicMaterial color="#A6948A" transparent opacity={0.1} />
+            {/* Meridiano 2: 90° - 270° en color palette-cream */}
+            <Line
+              points={meridian2Points}
+              color="#D9CEC5"
+              lineWidth={1.5}
+              transparent
+              opacity={0.85}
+            />
+
+            {/* Nodo central luminoso en el Polo Sur (intersección exacta 90°S) */}
+            <mesh position={[0, -NATIVE_MOON_RADIUS * 1.0035, 0]}>
+              <sphereGeometry args={[0.015, 20, 20]} />
+              <meshBasicMaterial color="#D9CEC5" />
             </mesh>
-
-            {/* Etiqueta flotante "Polo Sur" */}
-            <Html
-              position={[0, -(NATIVE_MOON_RADIUS + 0.04 + 15 * 0.08 + 0.075), 0]}
-              center
-              className="pointer-events-none select-none"
-            >
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#0D0D0D]/90 border border-[#3B3B40] backdrop-blur-md shadow-[0_0_18px_rgba(63,60,73,0.35)] whitespace-nowrap">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping shrink-0" />
-                <span className="font-heading font-bold text-[12px] uppercase tracking-widest text-[#FFFFFF]">
-                  Polo Sur
-                </span>
-              </div>
-            </Html>
           </group>
         )}
       </group>

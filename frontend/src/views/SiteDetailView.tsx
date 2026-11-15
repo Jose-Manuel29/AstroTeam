@@ -31,6 +31,8 @@ import {
 export interface SiteDetailViewProps {
   siteId: string;
   sites: LandingSite[];
+  /** Si es true, la vista inicia en el mapa general del Polo Sur (sin sitio aislado) */
+  overview?: boolean;
   moonArrived?: boolean;
   onBackToPicker?: () => void;
   onSelectSite?: (siteId: string) => void;
@@ -143,6 +145,7 @@ function formatDiskVisibility(fullDiskVisible: boolean, anyPartVisible: boolean)
 export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   siteId,
   sites,
+  overview = false,
   moonArrived = false,
   onBackToPicker,
   onSelectSite,
@@ -312,6 +315,18 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
     Number(site.illuminationAvgPercent >= criteriaValues.illumination) +
     Number(site.earthVisibilityPercent >= criteriaValues.earthLink);
   const fulfilledKpiPercent = (metCriteriaCount / 2) * 100;
+
+  // Clasificación de estatus (Cumple ambos / uno / ninguno) sincronizada con el picker y la leyenda
+  const currentStatusTier: "optimal" | "marginal" | "critical" =
+    metCriteriaCount === 2 ? "optimal" : metCriteriaCount === 1 ? "marginal" : "critical";
+
+  // Color del estatus para pintar el aro superior de las capas holográficas
+  const currentStatusColor =
+    currentStatusTier === "optimal"
+      ? "#34d399" // emerald-400
+      : currentStatusTier === "marginal"
+      ? "#fbbf24" // amber-400
+      : "#fb7185"; // rose-400
 
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>({
     sun: true,
@@ -489,9 +504,21 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   );
 
   // Estado del sitio enfocado dentro del nuevo visor 3D (diorama + capas holográficas + vuelo de cámara)
-  // Al seleccionar en el picker entra directamente en vista detalle del sitio seleccionado
-  const [selectedMapSite, setSelectedMapSite] = useState<PresetSite | null>(initialPresetSite);
-  const [flightId, setFlightId] = useState<number>(1);
+  // Al seleccionar en el picker entra directamente en vista detalle del sitio seleccionado.
+  // Si overview es true ("Explorar terreno"), inicia en la vista general de todo el Polo Sur.
+  const [selectedMapSite, setSelectedMapSite] = useState<PresetSite | null>(
+    overview ? null : initialPresetSite
+  );
+  const [flightId, setFlightId] = useState<number>(overview ? 0 : 1);
+  const [isShaking, setIsShaking] = useState<boolean>(false);
+
+  // Vibración de rechazo táctico del minimapa cuando ya se está en la vista general
+  const triggerMinimapShake = useCallback(() => {
+    setIsShaking(true);
+    setTimeout(() => {
+      setIsShaking(false);
+    }, 450);
+  }, []);
 
   const handleMapLoaded = useCallback(() => {
     setMapLoaded(true);
@@ -533,9 +560,9 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
 
   useEffect(() => {
     setAllowMapEntrance(false);
-    setSelectedMapSite(initialPresetSite);
+    setSelectedMapSite(overview ? null : initialPresetSite);
     setFlightId((n) => n + 1);
-  }, [siteId, initialPresetSite]);
+  }, [siteId, initialPresetSite, overview]);
 
   useEffect(() => {
     if (!moonArrived) {
@@ -660,6 +687,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
               }}
               showStars={false}
               showDebugHud={false}
+              statusColor={currentStatusColor}
               className="relative w-full h-full bg-transparent"
               onLoaded={handleMapLoaded}
             />
@@ -729,6 +757,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           title="Catalog criteria met"
           value={fulfilledKpiPercent}
           unit="%"
+          statusTier={currentStatusTier}
           badgeText={`${metCriteriaCount}/2`}
           subtitle={`${metCriteriaCount} of 2 period-summary thresholds met`}
           className="w-fit self-start shrink-0 min-h-0 pointer-events-auto"
@@ -935,7 +964,8 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         />
 
         <MapLegendCard
-          title="Simbología e Indicadores"
+          mode="detail"
+          title="Terrain & Vector Symbology"
           className="w-full shrink min-h-0 pointer-events-auto"
         />
       </aside>
@@ -955,21 +985,29 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
         >
           {/* Radar polar de orientación: Matriz 2x2, leyenda táctica interactiva y alternancia de vistas */}
           <div className="pointer-events-auto shrink-0 flex flex-col items-end gap-[clamp(0.3rem,0.7vh,0.55rem)] w-full max-w-full">
-            {/* Leyenda interactiva sobre el minimapa: indica si está en detalle o general y la acción al hacer clic */}
+            {/* Leyenda interactiva sobre el minimapa: indica si está en detalle o general */}
             <button
               type="button"
-              onClick={handleToggleOverview}
+              onClick={() => {
+                if (isOverview) {
+                  triggerMinimapShake();
+                } else {
+                  handleToggleOverview();
+                }
+              }}
               title={
                 isOverview
-                  ? "Presiona para volver a la vista detalle del sitio"
-                  : "Presiona para ver el mapa general del Polo Sur"
+                  ? "Overview map already active"
+                  : "Click to view South Pole overview map"
               }
               aria-label={
                 isOverview
-                  ? "Cambiar a vista detalle del sitio"
-                  : "Cambiar a vista general del Polo Sur"
+                  ? "Overview map active"
+                  : "Switch to South Pole overview map"
               }
-              className="group flex items-center gap-2 px-[clamp(0.55rem,0.85vw,0.75rem)] py-[clamp(0.25rem,0.5vh,0.35rem)] rounded-full bg-palette-obsidian/85 hover:bg-palette-charcoal/85 border border-palette-slate/40 hover:border-palette-cream/40 transition-all duration-200 backdrop-blur-md cursor-pointer shadow-[0_2px_10px_rgba(0,0,0,0.55)] focus:outline-none"
+              className={`group flex items-center gap-2 px-[clamp(0.55rem,0.85vw,0.75rem)] py-[clamp(0.25rem,0.5vh,0.35rem)] rounded-full bg-palette-obsidian/85 hover:bg-palette-charcoal/85 border border-palette-slate/40 hover:border-palette-cream/40 transition-all duration-200 backdrop-blur-md cursor-pointer shadow-[0_2px_10px_rgba(0,0,0,0.55)] focus:outline-none ${
+                isShaking && isOverview ? "animate-hud-shake ring-2 ring-rose-400/60" : ""
+              }`}
             >
               <span
                 className={`inline-block w-2 h-2 rounded-full transition-colors ${
@@ -979,31 +1017,47 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 }`}
               />
               <span className="font-heading font-bold text-[clamp(9px,1vh,11px)] tracking-wider uppercase text-palette-cream/90">
-                {isOverview ? "VISTA GENERAL" : "VISTA DETALLE"}
+                {isOverview ? "OVERVIEW MAP" : "SITE DETAIL"}
               </span>
               <span className="font-sans text-[clamp(9px,0.95vh,10.5px)] text-palette-slate group-hover:text-palette-cream transition-colors">
-                {isOverview ? "· Clic: Detalle ↩" : "· Clic: General ↗"}
+                {isOverview ? "· Overview Active" : "· Click: Overview ↗"}
               </span>
             </button>
 
-            {/* Minimapa polar interactivo: crece en el alto disponible, forma cuadrada y ancho limitado a la card inferior */}
+            {/* Minimapa polar interactivo: en modo detalle permite cambiar a general; en modo general vibra indicando que ya está en la vista general del mapa */}
             <div
-              onClick={handleToggleOverview}
+              onClick={() => {
+                if (isOverview) {
+                  triggerMinimapShake();
+                } else {
+                  handleToggleOverview();
+                }
+              }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  handleToggleOverview();
+                  if (isOverview) {
+                    triggerMinimapShake();
+                  } else {
+                    handleToggleOverview();
+                  }
                 }
               }}
               title={
                 isOverview
-                  ? "Presiona el mapa para volver a la vista detalle"
-                  : "Presiona el mapa para ver la vista general"
+                  ? "Overview map already active"
+                  : "Click map to view overview map"
               }
-              aria-label="Alternar entre vista general y vista detalle"
-              className="relative cursor-pointer group rounded-full transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-palette-cream/40 w-[clamp(170px,26vh,100%)] max-w-full aspect-square"
+              aria-label={
+                isOverview
+                  ? "Overview map active"
+                  : "Switch to overview map"
+              }
+              className={`relative cursor-pointer group rounded-full transition-transform duration-200 focus:outline-none focus:ring-2 focus:ring-palette-cream/40 w-[clamp(170px,26vh,100%)] max-w-full aspect-square ${
+                isShaking ? "animate-hud-shake ring-2 ring-rose-400/60" : "hover:scale-[1.02] active:scale-[0.98]"
+              }`}
             >
               <SouthPoleMinimap
                 currentSiteId={site.id}
@@ -1047,8 +1101,8 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
             type="button"
             id="mini-moon-target"
             onClick={onBackToPicker}
-            title="Presiona para regresar a la vista de selector de ubicación"
-            aria-label="Regresar a vista de selección"
+            title="Click to return to location picker view"
+            aria-label="Return to location picker"
             className="h-full aspect-square rounded-full pointer-events-auto cursor-pointer bg-transparent border-0 outline-none p-0 transition-transform duration-200 hover:scale-105 active:scale-95 group focus:outline-none"
           />
         </HudCard>

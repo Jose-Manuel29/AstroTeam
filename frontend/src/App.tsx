@@ -18,6 +18,8 @@ export const App: React.FC = () => {
   const [explorerInitialPhase, setExplorerInitialPhase] =
     useState<ExplorerPhase>("landing");
   const [detailMoonArrived, setDetailMoonArrived] = useState(false);
+  // Vista general del mapa 3D (botón "Explorar terreno"): sin sitio aislado inicialmente
+  const [detailOverview, setDetailOverview] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -95,7 +97,9 @@ export const App: React.FC = () => {
         }}
         onSelectSiteDetail={(siteId) => {
           setDetailMoonArrived(false);
-          setSelectedSiteId(siteId);
+          // Un id vacío indica la vista general del mapa (conserva el sitio seleccionado como referencia)
+          setDetailOverview(!siteId);
+          if (siteId) setSelectedSiteId(siteId);
           setCurrentView("detail");
         }}
       />
@@ -104,13 +108,17 @@ export const App: React.FC = () => {
         <SiteDetailView
           siteId={selectedSiteId}
           sites={sites}
+          overview={detailOverview}
           moonArrived={detailMoonArrived}
           onBackToPicker={() => {
             setDetailMoonArrived(false);
             setExplorerInitialPhase("picker");
             setCurrentView("explorer");
           }}
-          onSelectSite={setSelectedSiteId}
+          onSelectSite={(siteId) => {
+            setDetailOverview(false);
+            setSelectedSiteId(siteId);
+          }}
         />
       )}
     </div>

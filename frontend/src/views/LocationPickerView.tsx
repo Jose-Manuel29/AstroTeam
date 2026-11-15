@@ -472,7 +472,7 @@ const SceneDirector: React.FC<SceneDirectorProps> = ({
                 [0, innerExtent, 0],
                 [0, currentOuterExtent, 0],
               ]}
-              color="#FAFAFA"
+              color="#D9CEC5"
               lineWidth={1.6}
               dashed
               dashSize={0.08}
@@ -485,7 +485,7 @@ const SceneDirector: React.FC<SceneDirectorProps> = ({
                 [0, -innerExtent, 0],
                 [0, -currentOuterExtent, 0],
               ]}
-              color="#FAFAFA"
+              color="#D9CEC5"
               lineWidth={1.6}
               dashed
               dashSize={0.08}
@@ -539,7 +539,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
     () => [
       {
         id: "illumination",
-        label: "Visibilidad solar mínima",
+        label: "Min. solar visibility ↑",
         value: criteriaValues.illumination,
         min: 0,
         max: 100,
@@ -548,7 +548,7 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
       },
       {
         id: "earthLink",
-        label: "Visibilidad de Tierra mínima",
+        label: "Min. Direct-to-Earth (DTE) visibility ↑",
         value: criteriaValues.earthLink,
         min: 0,
         max: 100,
@@ -591,22 +591,15 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
     });
   }, [criteriaValues, sites]);
 
-  const selectedSite = useMemo(
-    () =>
-      filteredSites.find((s) => s.id === selectedSiteId) ||
-      filteredSites[0] ||
-      null,
-    [filteredSites, selectedSiteId]
-  );
-
-  const handleExploreTerrain = (site: LandingSite) => {
-    setSelectedSiteId(site.id);
+  const handleExploreTerrain = () => {
     setPhase("detail");
-    onSelectSiteDetail?.(site.id);
+    onSelectSiteDetail?.(""); // Enviar a la vista general del mapa (sin sitio específico fijado)
   };
 
   const handleSelectSiteOnGlobe = (site: LandingSite) => {
-    handleExploreTerrain(site);
+    setSelectedSiteId(site.id);
+    setPhase("detail");
+    onSelectSiteDetail?.(site.id);
   };
 
   // Manejo de la transición al presionar "Aterrizar"
@@ -790,26 +783,26 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
           className="absolute left-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(1.2rem,2.5vh,1.75rem)] z-30 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#3B3B40]/45 hover:bg-[#3B3B40]/75 border border-white/20 text-[#D9CEC5] font-sans text-xs backdrop-blur-md transition-all shadow-[0_2px_8px_rgba(0,0,0,0.3)] cursor-pointer pointer-events-auto hover:scale-[1.03] active:scale-[0.98]"
         >
           <span>&larr;</span>
-          <span>Inicio</span>
+          <span>Home</span>
         </button>
 
-        {/* Card Superior Izquierda: Criterios cumplidos (3 Sliders) con separación suficiente respecto al botón */}
+        {/* Card Superior Izquierda: Criterios cumplidos (2 Sliders: Sol + Tierra) con separación suficiente respecto al botón */}
         <aside className="absolute left-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] z-20 flex flex-col gap-3 pointer-events-none">
           <CriteriaSlidersCard
-            title="Umbrales del catálogo"
+            title="Fulfilled criteria"
             items={sliderItems}
             onChange={handleCriterionChange}
             className="w-[clamp(270px,23vw,330px)] pointer-events-auto"
           />
 
-          {/* Nueva Card de Leyenda de Indicadores (Espacio Amarillo) */}
-          <MapLegendCard className="w-[clamp(270px,23vw,330px)] pointer-events-auto" />
+          {/* Card de Leyenda de Indicadores (Globo 3D) */}
+          <MapLegendCard mode="picker" className="w-[clamp(270px,23vw,330px)] pointer-events-auto" />
         </aside>
 
         {/* Card Superior Derecha: Listado Clasificado de Sitios Candidatos */}
         <aside className="absolute right-[clamp(1.5rem,4.4vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] z-20 pointer-events-none">
           <CandidateSitesListCard
-            title="Coincidencia con criterios"
+            title="Landing Sites"
             sites={filteredSites}
             selectedSiteId={selectedSiteId}
             onSelectSite={(site) => setSelectedSiteId(site.id)}
@@ -817,17 +810,25 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
           />
         </aside>
 
-        {/* Botón CTA "Explorar terreno" en la esquina inferior derecha imitando el botón de Landing */}
-        {selectedSite && (
-          <aside className="absolute right-[clamp(1.5rem,4.4vw,4rem)] bottom-[clamp(1.5rem,4vh,3rem)] z-30 pointer-events-auto">
-            <FigmaLandingButton
-              onClick={() => handleExploreTerrain(selectedSite)}
-              label="Explorar terreno"
-              textColor="text-[#FAFAFA]"
-              className="px-8 py-2.5 min-w-[190px] h-[44px] shadow-[0_0_20px_rgba(217,206,197,0.22)]"
-            />
-          </aside>
-        )}
+        {/* Botón CTA "Explore Terrain" con la estética glassmorphic de las cards moradas (slate) */}
+        <aside className="absolute right-[clamp(1.5rem,4.4vw,4rem)] bottom-[clamp(1.5rem,4vh,3rem)] z-30 pointer-events-auto">
+          <button
+            type="button"
+            onClick={handleExploreTerrain}
+            className="group inline-flex items-center justify-center gap-3 px-7 py-3 min-w-[190px] rounded-[clamp(12px,1.8vh,18px)] bg-[#7F7B8C]/20 hover:bg-[#7F7B8C]/35 active:bg-[#7F7B8C]/25 border border-white/15 hover:border-white/30 backdrop-blur-md shadow-[0px_4px_4px_rgba(63,60,73,0.85),inset_0px_1px_1px_rgba(255,255,255,0.18)] transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer select-none focus:outline-none"
+            aria-label="Explore Terrain"
+          >
+            <span className="font-sans font-bold text-[clamp(14px,1.5vh,16px)] text-[#FAFAFA] tracking-wide">
+              Explore Terrain
+            </span>
+            <span
+              aria-hidden="true"
+              className="text-[#D9CEC5] text-base transition-transform duration-200 group-hover:translate-x-1"
+            >
+              &rarr;
+            </span>
+          </button>
+        </aside>
       </div>
     </div>
   );

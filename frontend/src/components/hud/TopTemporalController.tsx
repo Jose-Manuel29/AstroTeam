@@ -74,7 +74,7 @@ export const TemporalRulerSlider: React.FC<TemporalRulerSliderProps> = ({
       {/* Título indicador superior con viñeta amarilla táctica a la derecha */}
       <div className="flex items-center justify-center gap-1.5 pb-[clamp(0.2rem,0.45vh,0.4rem)] pointer-events-none select-none">
         <span className="font-heading font-bold text-[clamp(0.68rem,1.15vh,0.78rem)] uppercase tracking-[0.14em] text-palette-cream">
-          Avanzar el reloj
+          Advance mission clock
         </span>
         <span className="w-1.5 h-1.5 rounded-full bg-[#FACC15] shadow-[0_0_8px_#FACC15] inline-block" />
       </div>

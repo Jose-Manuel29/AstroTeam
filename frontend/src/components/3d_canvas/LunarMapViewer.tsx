@@ -175,6 +175,7 @@ export interface LunarMapViewerProps {
   className?: string;
   onLoaded?: () => void;
   showDebugHud?: boolean;
+  statusColor?: string;
   children?: React.ReactNode;
 }
 
@@ -201,6 +202,7 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
   className = "relative w-full h-full bg-transparent",
   onLoaded,
   showDebugHud = false,
+  statusColor = "#D9CEC5",
   children,
 }) => {
   const { selectedSite: contextSite } = useSiteContext();
@@ -258,6 +260,7 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
               selectedSite={activeSite}
               terrainSize={terrainSize}
               visible={grid?.visible ?? true}
+              statusColor={statusColor}
             />
 
             <EarthVector
@@ -266,8 +269,8 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
               origin={earth?.origin ?? [0, 0, 0]}
               targetDirection={earth?.targetDirection ?? [40, 50, -30]}
               terrainSize={terrainSize}
-              color={earth?.color ?? "#D9CEC5"}
-              label={earth?.label ?? "TIERRA"}
+              color={earth?.color ?? "#38BDF8"}
+              label={earth?.label ?? "EARTH"}
             />
 
             <LunarSurface
@@ -358,12 +361,12 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
           </div>
           <span className="text-white/20">|</span>
           <div className="flex items-center gap-1.5">
-            <span className="text-[#A6948A] uppercase">Inclinación (Polar):</span>
+            <span className="text-[#A6948A] uppercase">Inclination (Polar):</span>
             <span className="text-emerald-400 font-semibold">{telemetry.polarAngleDeg}°</span>
           </div>
           <span className="text-white/20">|</span>
           <div className="flex items-center gap-1.5">
-            <span className="text-[#A6948A] uppercase">Azimut:</span>
+            <span className="text-[#A6948A] uppercase">Azimuth:</span>
             <span className="text-emerald-400 font-semibold">{telemetry.azimuthAngleDeg}°</span>
           </div>
           <span className="text-white/20">|</span>
@@ -377,10 +380,10 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
               const snippet = `initialPosition: [${telemetry.position.join(", ")}], target: [${telemetry.target.join(", ")}]`;
               navigator.clipboard?.writeText(snippet);
             }}
-            title="Copiar valores al portapapeles"
+            title="Copy values to clipboard"
             className="ml-1 px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[10px] text-white cursor-pointer transition-colors"
           >
-            Copiar
+            Copy
           </button>
         </div>
       )}

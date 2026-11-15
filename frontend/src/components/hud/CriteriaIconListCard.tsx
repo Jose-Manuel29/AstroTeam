@@ -51,7 +51,7 @@ export interface CriteriaIconListCardProps {
  * Soporta icono a la izquierda o derecha y cabecera alineada a izquierda o derecha.
  */
 export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
-  title = "Criterios cumplidos",
+  title = "Fulfilled criteria",
   subtitle,
   headerAlign = "left",
   iconPosition = "right",

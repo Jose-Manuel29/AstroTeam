@@ -15,6 +15,8 @@ export interface DataLayersProps {
   layerSize?: number;
   terrainSize?: number;
   visible?: boolean;
+  /** Color temático del aro superior según el estado de la zona ("#34d399" óptimo, "#fbbf24" marginal, "#fb7185" crítico). */
+  statusColor?: string;
 }
 
 /**
@@ -29,6 +31,7 @@ export const DataLayers: React.FC<DataLayersProps> = ({
   layerSize = 30,
   terrainSize = TERRAIN.size,
   visible = true,
+  statusColor = "#D9CEC5",
 }) => {
   const { selectedSite: contextSite } = useSiteContext();
   const activeSite = selectedSiteProp !== undefined ? selectedSiteProp : contextSite;
@@ -154,13 +157,13 @@ export const DataLayers: React.FC<DataLayersProps> = ({
           />
         </mesh>
         <lineSegments geometry={edgesGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
-          <lineBasicMaterial color="#D9CEC5" transparent opacity={0.65} toneMapped={false} />
+          <lineBasicMaterial color={statusColor} transparent opacity={0.65} toneMapped={false} />
         </lineSegments>
         <mesh geometry={topRingGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
           <meshBasicMaterial
-            color="#D9CEC5"
+            color={statusColor}
             transparent
-            opacity={0.75}
+            opacity={0.85}
             depthWrite={false}
             side={THREE.DoubleSide}
             toneMapped={false}
@@ -170,7 +173,7 @@ export const DataLayers: React.FC<DataLayersProps> = ({
           font={SPACE_MONO_TTF}
           position={[-half, 0.35, half + 0.8]}
           fontSize={0.55}
-          color="#D9CEC5"
+          color={statusColor}
           anchorX="left"
           anchorY="middle"
         >

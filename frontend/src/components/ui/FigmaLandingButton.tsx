@@ -20,7 +20,7 @@ export interface FigmaLandingButtonProps {
 export const FigmaLandingButton: React.FC<FigmaLandingButtonProps> = ({
   onClick,
   className = "",
-  label = "Aterrizar",
+  label = "Touch Down",
   textColor = "text-[#09080C]",
   icon,
 }) => {

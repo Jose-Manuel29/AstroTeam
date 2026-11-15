@@ -24,7 +24,7 @@ export interface CandidateSitesListCardProps {
  * y una altura extendida para mayor comodidad de visualización.
  */
 export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
-  title = "Sitios de Aterrizaje",
+  title = "Landing Sites",
   sites,
   selectedSiteId,
   onSelectSite,
@@ -41,28 +41,28 @@ export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
     return s.viabilityTier === filterTab;
   });
 
-  // Tags de estatus sin relleno: icono representativo de cada estado y texto en color
+  // Status badges: icon and colored text
   const renderBadge = (tier: ViabilityTier) => {
     switch (tier) {
       case "optimal":
         return (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-sans font-medium text-emerald-400">
             <CheckCircle size={14} weight="fill" className="text-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-            Cumple ambos
+            Meets both
           </span>
         );
       case "marginal":
         return (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-sans font-medium text-amber-400">
             <WarningCircle size={14} weight="fill" className="text-amber-400 shrink-0 shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
-            Cumple uno
+            Meets one
           </span>
         );
       case "critical":
         return (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-sans font-medium text-rose-400">
             <XCircle size={14} weight="fill" className="text-rose-400 shrink-0 shadow-[0_0_6px_rgba(251,113,133,0.6)]" />
-            No cumple
+            Meets none
           </span>
         );
     }
@@ -77,18 +77,18 @@ export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
     >
       <HudCardHeader
         title={title}
-        subtitle={`${optimalSites.length} cumplen ambos · ${marginalSites.length} uno · ${criticalSites.length} ninguno`}
+        subtitle={`${optimalSites.length} meet both · ${marginalSites.length} one · ${criticalSites.length} none`}
         align="left"
         size="md"
       />
 
-      {/* Selector de estatus con dropdown */}
+      {/* Status dropdown filter */}
       <div className="flex items-center justify-between gap-2 px-1 py-0.5 border-b border-white/10 pb-2">
         <label
           htmlFor="criteria-match-filter-select"
           className="font-heading font-medium text-[11px] uppercase tracking-wider text-palette-cream/80"
         >
-          Filtrar por estatus:
+          Filter by status:
         </label>
         <div className="relative">
           <select
@@ -98,16 +98,16 @@ export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
             className="appearance-none bg-palette-charcoal/80 hover:bg-palette-charcoal text-[#FAFAFA] font-sans text-[11.5px] font-medium pl-3 pr-7 py-1 rounded-lg border border-white/15 focus:outline-none focus:border-palette-cream/40 cursor-pointer backdrop-blur-sm transition-colors"
           >
             <option value="all" className="bg-[#141416] text-[#FAFAFA]">
-              Todos ({sites.length})
+              All ({sites.length})
             </option>
             <option value="optimal" className="bg-[#141416] text-emerald-400">
-              Cumple ambos ({optimalSites.length})
+              Meets both ({optimalSites.length})
             </option>
             <option value="marginal" className="bg-[#141416] text-amber-400">
-              Cumple uno ({marginalSites.length})
+              Meets one ({marginalSites.length})
             </option>
             <option value="critical" className="bg-[#141416] text-rose-400">
-              No cumple ({criticalSites.length})
+              Meets none ({criticalSites.length})
             </option>
           </select>
           <CaretDown
@@ -143,13 +143,13 @@ export const CandidateSitesListCard: React.FC<CandidateSitesListCardProps> = ({
                 {renderBadge(site.viabilityTier)}
               </div>
 
-              {/* Métricas clave en miniatura */}
+              {/* Key metrics in miniature */}
               <div className="grid grid-cols-2 gap-1.5 text-[11px] font-sans text-palette-cream/80 pt-0.5 border-t border-white/5">
-                <span className="flex items-center gap-1 truncate" title="Porcentaje de muestras con el centro del Sol visible">
+                <span className="flex items-center gap-1 truncate" title="Samples with the Sun center visible">
                   <Sun size={12} className="text-amber-400 shrink-0" />
                   {site.illuminationAvgPercent}%
                 </span>
-                <span className="flex items-center gap-1 truncate" title="Porcentaje de muestras con visibilidad directa a la Tierra">
+                <span className="flex items-center gap-1 truncate" title="Samples with direct line of sight to Earth">
                   <Broadcast size={12} className="text-palette-cream shrink-0" />
                   {site.earthVisibilityPercent}%
                 </span>
