@@ -20,7 +20,7 @@ export const CriteriaDaysKpiCard: React.FC<CriteriaDaysKpiCardProps> = ({
   unitLabel = "days",
   subtitle,
   align = "right",
-  className = "w-full",
+  className = "w-fit",
 }) => {
   const justifyClass =
     align === "left"
@@ -43,7 +43,7 @@ export const CriteriaDaysKpiCard: React.FC<CriteriaDaysKpiCardProps> = ({
         size="lg"
       />
 
-      <div className={`flex items-baseline gap-[0.4vw] pt-[0.1vh] w-full ${justifyClass}`}>
+      <div className={`flex items-baseline gap-[0.4vw] pt-[0.1vh] w-auto ${justifyClass}`}>
         <span className="font-heading font-medium text-[clamp(1.75rem,4.8vh,3.4rem)] leading-none tracking-tight text-[#FAFAFA] tabular-nums">
           {days}
         </span>

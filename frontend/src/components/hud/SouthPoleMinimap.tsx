@@ -8,6 +8,7 @@ export interface SouthPoleMinimapProps {
   onSelectSite?: (slug: string) => void;
   size?: number;
   className?: string;
+  isOverview?: boolean;
 }
 
 /**
@@ -35,7 +36,8 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
   currentSiteSlug = "shackleton-connecting-ridge",
   onSelectSite,
   size,
-  className = "w-[clamp(95px,16.5vh,195px)] h-[clamp(95px,16.5vh,195px)] aspect-square",
+  className = "w-full h-full aspect-square",
+  isOverview = false,
 }) => {
   // Dimensiones relativas (%) respecto al sistema base de 210x210 de Figma
   const rectWidthPct = (38 / 210) * 100;
@@ -97,25 +99,31 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
       {/* 2. OVERLAY RADAR SUTIL CON PALETA LUNAR */}
       <div className="absolute inset-0 rounded-full border border-palette-cream/15 pointer-events-none" />
 
-      {/* 3. LÍNEA VERTICAL DISCONTINUA (Paleta Ochre con opacidad) */}
+      {/* 3. LÍNEA VERTICAL DISCONTINUA (Paleta Ochre con opacidad, oculta en overview) */}
       <div
-        className="absolute top-0 bottom-0 w-0 border-l-2 border-dashed border-palette-ochre/85 pointer-events-none transition-all duration-500 ease-out z-10"
+        className={`absolute top-0 bottom-0 w-0 border-l-2 border-dashed border-palette-ochre/85 pointer-events-none transition-all duration-500 ease-out z-10 ${
+          isOverview ? "opacity-0 scale-95" : "opacity-100 scale-100"
+        }`}
         style={{
           left: `${targetXPct}%`,
         }}
       />
 
-      {/* 4. LÍNEA HORIZONTAL DISCONTINUA (Paleta Ochre con opacidad) */}
+      {/* 4. LÍNEA HORIZONTAL DISCONTINUA (Paleta Ochre con opacidad, oculta en overview) */}
       <div
-        className="absolute left-0 right-0 h-0 border-t-2 border-dashed border-palette-ochre/85 pointer-events-none transition-all duration-500 ease-out z-10"
+        className={`absolute left-0 right-0 h-0 border-t-2 border-dashed border-palette-ochre/85 pointer-events-none transition-all duration-500 ease-out z-10 ${
+          isOverview ? "opacity-0 scale-95" : "opacity-100 scale-100"
+        }`}
         style={{
           top: `${targetYPct}%`,
         }}
       />
 
-      {/* 5. RECUADRO DE ZONA ACTIVA (Paleta Cream translúcido con borde Ochre) */}
+      {/* 5. RECUADRO DE ZONA ACTIVA (Paleta Cream translúcido con borde Ochre, oculto en overview) */}
       <div
-        className="absolute box-border bg-palette-cream/70 border-2 border-palette-ochre pointer-events-none transition-all duration-500 ease-out z-20 shadow-[0_0_12px_rgba(217,206,197,0.35)]"
+        className={`absolute box-border bg-palette-cream/70 border-2 border-palette-ochre pointer-events-none transition-all duration-500 ease-out z-20 shadow-[0_0_12px_rgba(217,206,197,0.35)] ${
+          isOverview ? "opacity-0 scale-75" : "opacity-100 scale-100"
+        }`}
         style={{
           width: `${rectWidthPct}%`,
           height: `${rectHeightPct}%`,
@@ -131,13 +139,16 @@ export const SouthPoleMinimap: React.FC<SouthPoleMinimapProps> = ({
 
         const posXPct = (coord.x / 210) * 100;
         const posYPct = (coord.y / 210) * 100;
-        const isActive = site.slug === currentSiteSlug;
+        const isActive = !isOverview && site.slug === currentSiteSlug;
 
         return (
           <button
             key={site.id}
             type="button"
-            onClick={() => onSelectSite?.(site.slug)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectSite?.(site.slug);
+            }}
             title={`${site.name} (${Math.abs(site.coordinates.lat)}°S, ${site.coordinates.lng}°E)`}
             className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform duration-300 z-30 group cursor-pointer focus:outline-none ${
               isActive ? "scale-125" : "hover:scale-150"

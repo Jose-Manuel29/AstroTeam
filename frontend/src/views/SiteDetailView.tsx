@@ -244,9 +244,22 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   const [mapLoaded, setMapLoaded] = useState<boolean>(false);
   const [allowMapEntrance, setAllowMapEntrance] = useState<boolean>(false);
 
+  // Mapeo del sitio candidato seleccionado al preset correspondiente en el mapa 3D
+  const initialPresetSite = useMemo(() => {
+    return (
+      PRESET_SITES.find(
+        (p) =>
+          p.id.toLowerCase() === siteSlug.toLowerCase() ||
+          p.id.toLowerCase() === site.slug.toLowerCase() ||
+          p.name.toLowerCase() === site.name.toLowerCase()
+      ) || PRESET_SITES[0]
+    );
+  }, [siteSlug, site]);
+
   // Estado del sitio enfocado dentro del nuevo visor 3D (diorama + capas holográficas + vuelo de cámara)
-  const [selectedMapSite, setSelectedMapSite] = useState<PresetSite | null>(null);
-  const [flightId, setFlightId] = useState<number>(0);
+  // Al seleccionar en el picker entra directamente en vista detalle del sitio seleccionado
+  const [selectedMapSite, setSelectedMapSite] = useState<PresetSite | null>(initialPresetSite);
+  const [flightId, setFlightId] = useState<number>(1);
 
   const handleMapLoaded = useCallback(() => {
     setMapLoaded(true);
@@ -257,16 +270,43 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
     setFlightId((n) => n + 1);
   }, []);
 
+  const isOverview = selectedMapSite === null;
+
+  // Alterna entre la vista general del mapa polar y la vista detalle del sitio activo
+  const handleToggleOverview = useCallback(() => {
+    if (selectedMapSite) {
+      setSelectedMapSite(null);
+      setFlightId((n) => n + 1);
+    } else {
+      setSelectedMapSite(initialPresetSite);
+      setFlightId((n) => n + 1);
+    }
+  }, [selectedMapSite, initialPresetSite]);
+
+  const handleSelectSiteFromMinimap = useCallback(
+    (slug: string) => {
+      onSelectSite?.(slug);
+      const targetPreset = PRESET_SITES.find((p) => p.id === slug) || null;
+      if (targetPreset) {
+        setSelectedMapSite(targetPreset);
+        setFlightId((n) => n + 1);
+      }
+    },
+    [onSelectSite]
+  );
+
   useEffect(() => {
     setAllowMapEntrance(false);
-    setSelectedMapSite(null);
-  }, [siteSlug]);
+    setSelectedMapSite(initialPresetSite);
+    setFlightId((n) => n + 1);
+  }, [siteSlug, initialPresetSite]);
 
   useEffect(() => {
     if (!moonArrived) {
       setAllowMapEntrance(false);
       return;
     }
+    setFlightId((n) => n + 1);
     const timer = setTimeout(() => {
       setAllowMapEntrance(true);
     }, 450);
@@ -287,7 +327,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
 
   return (
     <div className="absolute inset-0 bg-transparent overflow-hidden select-none pointer-events-none">
-      {/* Botón de retorno al selector global (entra junto con la UI desde arriba) */}
+      {/* Botón de retorno al selector global (entra junto con la UI desde arriba con padding y espaciado generoso) */}
       {onBackToPicker && (
         <button
           type="button"
@@ -297,7 +337,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
             opacity: moonArrived ? 1 : 0,
             transition: "transform 0.75s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease-out",
           }}
-          className="pointer-events-auto absolute left-[clamp(1.25rem,4.4vw,4rem)] top-[clamp(0.75rem,2vh,1.25rem)] z-30 inline-flex items-center gap-1.5 px-[clamp(0.65rem,0.9vw,0.875rem)] py-[clamp(0.2rem,0.45vh,0.35rem)] rounded-full bg-[#3B3B40]/30 hover:bg-[#3B3B40]/50 border border-white/15 text-[#D9CEC5] font-sans text-[clamp(0.68rem,1.25vh,0.75rem)] backdrop-blur-md transition-colors cursor-pointer"
+          className="pointer-events-auto absolute left-[clamp(1.25rem,4.4vw,4rem)] top-[clamp(1.2rem,2.5vh,1.75rem)] z-30 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#3B3B40]/45 hover:bg-[#3B3B40]/75 border border-white/20 text-[#D9CEC5] font-sans text-xs backdrop-blur-md transition-all shadow-[0_2px_8px_rgba(0,0,0,0.3)] cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
         >
           <span>&larr;</span>
           <span>{site.name}</span>
@@ -348,12 +388,13 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 pedestalColor: "#0D0D0D", // palette-obsidian oficial
                 focusRadius: 15.0,
                 cutoutShape: "square",
+                position: [0, -18, 0], // Bajado aún más en el eje Y para mejor encuadre visual y holgura vertical
                 rotation: [0, Math.PI / 4, 0], // Orientación isométrica en diamante a 45°
               }}
               earth={{
                 visible: activeLayers["dte-link"],
                 targetPosition: [40, 50, -30],
-                color: "#D9CEC5", // palette-cream oficial
+                color: "#38BDF8", // Azul táctico Direct-to-Earth
               }}
               grid={{
                 visible: activeLayers["solar-flux"],
@@ -363,15 +404,16 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
                 gridColor: "#3B3B40",   // palette-charcoal oficial
               }}
               camera={{
-                initialPosition: [0, 52, 95],
-                target: [0, -10, 0],
+                initialPosition: [32, 8.6, 51.2],
+                target: [4.8, -12.4, -7.7],
                 fov: 38,
-                flyOffset: [6, 8, 10],
+                flyOffset: [27.2, 21.0, 58.9], // Mantiene la misma inclinación y perspectiva al enfocar el sitio
                 lerpFactor: 0.06,
-                minDistance: 45,
-                maxDistance: 140,
+                minDistance: 30,
+                maxDistance: 150,
               }}
               showStars={false}
+              showDebugHud={false}
               className="relative w-full h-full bg-transparent"
               onLoaded={handleMapLoaded}
             />
@@ -401,10 +443,10 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
 
       {/* =========================================================================
           PASO 2B: COLUMNA HUD IZQUIERDA (Entra desde el borde izquierdo hacia adentro con ease-out)
-          Dimensionada con unidades relativas (vh/vw/clamp) para encajar siempre en pantalla con espaciado uniforme
+          Con espaciado vertical suficiente para no solaparse jamás con el botón superior
          ========================================================================= */}
       <aside
-        className="absolute left-[clamp(1rem,3.8vw,4rem)] top-[clamp(2.5rem,5.2vh,3.75rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(250px,22vw,336px)] z-20 flex flex-col justify-between gap-[clamp(0.35rem,1.1vh,0.85rem)] max-h-[calc(100vh-clamp(3.2rem,6.8vh,4.75rem))] pointer-events-none"
+        className="absolute left-[clamp(1rem,3.8vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(250px,22vw,336px)] z-20 flex flex-col justify-start gap-[clamp(0.85rem,2vh,1.4rem)] max-h-[calc(100vh-clamp(4.8rem,9.5vh,6.5rem))] pointer-events-none"
         style={{
           transform: moonArrived ? "translateX(0)" : "translateX(-430px)",
           opacity: moonArrived ? 1 : 0,
@@ -424,7 +466,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           unit="%"
           badgeText={fulfilledKpiPercent >= 75 ? "OPTIMAL" : "MARGINAL"}
           subtitle="Viable landing zone ↑"
-          className="w-full shrink min-h-0"
+          className="w-fit self-start shrink-0 min-h-0"
         />
 
         <CriteriaIconListCard
@@ -441,19 +483,74 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
          ========================================================================= */}
       <aside className="absolute right-[clamp(1rem,3.8vw,4rem)] top-[clamp(2.25rem,4.8vh,3.25rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(260px,23.5vw,360px)] z-20 flex flex-col items-end justify-between gap-[clamp(0.35rem,1.1vh,0.75rem)] max-h-[calc(100vh-clamp(3.2rem,6.8vh,4.75rem))] pointer-events-none">
         <div
-          className="w-full flex flex-col items-end gap-[clamp(0.35rem,1vh,0.75rem)] shrink min-h-0"
+          className="w-full flex flex-col items-end gap-[clamp(0.85rem,2vh,1.4rem)] shrink min-h-0"
           style={{
             transform: moonArrived ? "translateX(0)" : "translateX(450px)",
             opacity: moonArrived ? 1 : 0,
             transition: "transform 0.75s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease-out",
           }}
         >
-          {/* Radar polar de orientación: Matriz 2x2, líneas discontinuas y recuadro en % */}
-          <div className="pointer-events-auto shrink-0">
-            <SouthPoleMinimap
-              currentSiteSlug={site.slug}
-              onSelectSite={onSelectSite}
-            />
+          {/* Radar polar de orientación: Matriz 2x2, leyenda táctica interactiva y alternancia de vistas */}
+          <div className="pointer-events-auto shrink-0 flex flex-col items-end gap-[clamp(0.3rem,0.7vh,0.55rem)] w-full max-w-full">
+            {/* Leyenda interactiva sobre el minimapa: indica si está en detalle o general y la acción al hacer clic */}
+            <button
+              type="button"
+              onClick={handleToggleOverview}
+              title={
+                isOverview
+                  ? "Presiona para volver a la vista detalle del sitio"
+                  : "Presiona para ver el mapa general del Polo Sur"
+              }
+              aria-label={
+                isOverview
+                  ? "Cambiar a vista detalle del sitio"
+                  : "Cambiar a vista general del Polo Sur"
+              }
+              className="group flex items-center gap-2 px-[clamp(0.55rem,0.85vw,0.75rem)] py-[clamp(0.25rem,0.5vh,0.35rem)] rounded-full bg-palette-obsidian/85 hover:bg-palette-charcoal/85 border border-palette-slate/40 hover:border-palette-cream/40 transition-all duration-200 backdrop-blur-md cursor-pointer shadow-[0_2px_10px_rgba(0,0,0,0.55)] focus:outline-none"
+            >
+              <span
+                className={`inline-block w-2 h-2 rounded-full transition-colors ${
+                  isOverview
+                    ? "bg-palette-ochre shadow-[0_0_8px_#A6948A]"
+                    : "bg-palette-cream shadow-[0_0_8px_#D9CEC5] animate-pulse"
+                }`}
+              />
+              <span className="font-heading font-bold text-[clamp(9px,1vh,11px)] tracking-wider uppercase text-palette-cream/90">
+                {isOverview ? "VISTA GENERAL" : "VISTA DETALLE"}
+              </span>
+              <span className="font-sans text-[clamp(9px,0.95vh,10.5px)] text-palette-slate group-hover:text-palette-cream transition-colors">
+                {isOverview ? "· Clic: Detalle ↩" : "· Clic: General ↗"}
+              </span>
+            </button>
+
+            {/* Minimapa polar interactivo: crece en el alto disponible, forma cuadrada y ancho limitado a la card inferior */}
+            <div
+              onClick={handleToggleOverview}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleToggleOverview();
+                }
+              }}
+              title={
+                isOverview
+                  ? "Presiona el mapa para volver a la vista detalle"
+                  : "Presiona el mapa para ver la vista general"
+              }
+              aria-label="Alternar entre vista general y vista detalle"
+              className="relative cursor-pointer group rounded-full transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-palette-cream/40 w-[clamp(170px,26vh,100%)] max-w-full aspect-square"
+            >
+              <SouthPoleMinimap
+                currentSiteSlug={site.slug}
+                onSelectSite={handleSelectSiteFromMinimap}
+                isOverview={isOverview}
+                className="w-full h-full aspect-square"
+              />
+              {/* Overlay hover táctico sutil */}
+              <div className="absolute inset-0 rounded-full bg-palette-cream/0 group-hover:bg-palette-cream/10 transition-colors pointer-events-none" />
+            </div>
           </div>
 
           <CriteriaGridCard
@@ -468,7 +565,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
             title="Solar window"
             days={continuousSunlightDays}
             unitLabel="days"
-            className="w-full shrink min-h-0"
+            className="w-fit self-end shrink-0 min-h-0"
           />
         </div>
 

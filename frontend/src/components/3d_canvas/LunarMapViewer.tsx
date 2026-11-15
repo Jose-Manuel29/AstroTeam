@@ -1,8 +1,9 @@
 "use client";
 
-import React, { Suspense } from "react";
-import { Canvas } from "@react-three/fiber";
+import React, { Suspense, useState, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useSiteContext, type PresetSite } from "@/lib/context/SiteContext";
 import { TERRAIN } from "@/lib/geo/polarStereo";
 import { DynamicSun } from "@/components/3d_canvas/DynamicSun";
@@ -61,6 +62,8 @@ export interface TerrainConfig {
   cutoutShape?: DioramaCutoutShape;
   /** Rotación fija del bloque topográfico en radianes [X, Y, Z] */
   rotation?: [number, number, number];
+  /** Posición fija del bloque topográfico en unidades de mundo [X, Y, Z] */
+  position?: [number, number, number];
 }
 
 /** Configuración de la iluminación solar y ambiental */
@@ -94,7 +97,54 @@ export interface GridConfig {
   gridColor?: string;
 }
 
-/** Configuración de cámara y navegación */
+export interface CameraTelemetryData {
+  position: [number, number, number];
+  target: [number, number, number];
+  distance: number;
+  polarAngleDeg: number;
+  azimuthAngleDeg: number;
+  rotationDeg: [number, number, number];
+}
+
+interface CameraTrackerProps {
+  onUpdate: (data: CameraTelemetryData) => void;
+}
+
+const CameraTracker: React.FC<CameraTrackerProps> = ({ onUpdate }) => {
+  const { camera } = useThree();
+  const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
+  const lastUpdateRef = useRef<number>(0);
+
+  useFrame(() => {
+    const now = performance.now();
+    // Limitar a ~15 actualizaciones por segundo para no penalizar el render
+    if (now - lastUpdateRef.current < 65) return;
+    lastUpdateRef.current = now;
+
+    const t = controls?.target ?? { x: 0, y: 0, z: 0 };
+    const p = camera.position;
+    const r = camera.rotation;
+
+    const polar = controls ? (controls.getPolarAngle() * 180) / Math.PI : 0;
+    const az = controls ? (controls.getAzimuthalAngle() * 180) / Math.PI : 0;
+    const dist = controls ? controls.getDistance() : p.distanceTo(t as any);
+
+    onUpdate({
+      position: [Number(p.x.toFixed(1)), Number(p.y.toFixed(1)), Number(p.z.toFixed(1))],
+      target: [Number(t.x.toFixed(1)), Number(t.y.toFixed(1)), Number(t.z.toFixed(1))],
+      distance: Number(dist.toFixed(1)),
+      polarAngleDeg: Number(polar.toFixed(1)),
+      azimuthAngleDeg: Number(az.toFixed(1)),
+      rotationDeg: [
+        Number(((r.x * 180) / Math.PI).toFixed(1)),
+        Number(((r.y * 180) / Math.PI).toFixed(1)),
+        Number(((r.z * 180) / Math.PI).toFixed(1)),
+      ],
+    });
+  });
+
+  return null;
+};
 export interface CameraConfig {
   initialPosition?: [number, number, number];
   target?: [number, number, number];
@@ -122,6 +172,7 @@ export interface LunarMapViewerProps {
   showStars?: boolean;
   className?: string;
   onLoaded?: () => void;
+  showDebugHud?: boolean;
   children?: React.ReactNode;
 }
 
@@ -147,16 +198,19 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
   showStars = false,
   className = "relative w-full h-full bg-transparent",
   onLoaded,
+  showDebugHud = false,
   children,
 }) => {
   const { selectedSite: contextSite } = useSiteContext();
   const activeSite = selectedSiteProp !== undefined ? selectedSiteProp : contextSite;
+  const [telemetry, setTelemetry] = useState<CameraTelemetryData | null>(null);
 
   const terrainSize = terrain?.size ?? TERRAIN.size;
   const terrainSegments = terrain?.segments ?? TERRAIN.segments;
   const displacementScale = terrain?.displacementScale ?? TERRAIN.displacementScale;
   const displacementBias = terrain?.displacementBias ?? TERRAIN.displacementBias;
   const terrainRotation: [number, number, number] = terrain?.rotation ?? [0, 0, 0];
+  const terrainPosition: [number, number, number] = terrain?.position ?? [0, 0, 0];
   const camTarget: [number, number, number] = camera?.target ?? [0, -10, 0];
   const initialCamPos: [number, number, number] = camera?.initialPosition ?? [0, 52, 95];
 
@@ -194,7 +248,7 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
         />
 
         <Suspense fallback={null}>
-          <group rotation={terrainRotation}>
+          <group position={terrainPosition} rotation={terrainRotation}>
             {/* Capas de datos apiladas sobre el sitio seleccionado (Diorama Holográfico) */}
             <DataLayers
               selectedSite={activeSite}
@@ -266,6 +320,8 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
             lerpFactor={camera?.lerpFactor ?? 0.06}
             overviewCamera={initialCamPos}
             overviewTarget={camTarget}
+            terrainRotation={terrainRotation}
+            terrainPosition={terrainPosition}
           />
 
           {children}
@@ -279,7 +335,50 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
           maxDistance={camera?.maxDistance ?? 160}
           maxPolarAngle={Math.PI / 2.05}
         />
+
+        {showDebugHud && <CameraTracker onUpdate={setTelemetry} />}
       </Canvas>
+
+      {/* HUD flotante con telemetría en tiempo real de posición, inclinación y rotación de cámara */}
+      {showDebugHud && telemetry && (
+        <div className="pointer-events-auto absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-[#0D0D0D]/90 border border-white/20 rounded-md px-3.5 py-1.5 font-mono text-[11px] text-[#D9CEC5] backdrop-blur-md shadow-lg select-text">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[#A6948A] uppercase">Pos:</span>
+            <span className="text-cyan-300 font-semibold">[{telemetry.position.join(", ")}]</span>
+          </div>
+          <span className="text-white/20">|</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[#A6948A] uppercase">Target:</span>
+            <span className="text-amber-300 font-semibold">[{telemetry.target.join(", ")}]</span>
+          </div>
+          <span className="text-white/20">|</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[#A6948A] uppercase">Inclinación (Polar):</span>
+            <span className="text-emerald-400 font-semibold">{telemetry.polarAngleDeg}°</span>
+          </div>
+          <span className="text-white/20">|</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[#A6948A] uppercase">Azimut:</span>
+            <span className="text-emerald-400 font-semibold">{telemetry.azimuthAngleDeg}°</span>
+          </div>
+          <span className="text-white/20">|</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[#A6948A] uppercase">Rot (deg):</span>
+            <span className="text-purple-300 font-semibold">[{telemetry.rotationDeg.join(", ")}]</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const snippet = `initialPosition: [${telemetry.position.join(", ")}], target: [${telemetry.target.join(", ")}]`;
+              navigator.clipboard?.writeText(snippet);
+            }}
+            title="Copiar valores al portapapeles"
+            className="ml-1 px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[10px] text-white cursor-pointer transition-colors"
+          >
+            Copiar
+          </button>
+        </div>
+      )}
     </div>
   );
 };

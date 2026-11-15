@@ -21,7 +21,7 @@ export const CriteriaKpiCard: React.FC<CriteriaKpiCardProps> = ({
   unit = "%",
   subtitle = "Viable landing zone ↑",
   badgeText,
-  className = "w-full",
+  className = "w-fit",
 }) => {
   const formattedValue =
     typeof value === "number" ? `${value}${unit}` : value;
@@ -46,7 +46,7 @@ export const CriteriaKpiCard: React.FC<CriteriaKpiCardProps> = ({
       />
 
       {/* Valor central KPI escalado proporcionalmente a la altura de pantalla */}
-      <div className="flex items-center justify-center py-[clamp(0.08rem,0.35vh,0.35rem)] w-full">
+      <div className="flex items-center justify-center py-[clamp(0.08rem,0.35vh,0.35rem)] w-auto px-1">
         <span className="font-heading font-medium text-[clamp(2.1rem,5.6vh,4.25rem)] leading-none text-center text-[#FAFAFA] tabular-nums tracking-tight">
           {formattedValue}
         </span>

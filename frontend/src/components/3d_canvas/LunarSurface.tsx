@@ -315,7 +315,7 @@ export const LunarSurface: React.FC<LunarSurfaceProps> = ({
         .replace(
           "#include <project_vertex>",
           `#include <project_vertex>
-vWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
+vWorldXZ = vec2(transformed.x, -transformed.y);`
         );
 
       shader.fragmentShader = shader.fragmentShader
@@ -374,7 +374,7 @@ if (uFocusActive > 0.5) {
         .replace(
           "#include <project_vertex>",
           `#include <project_vertex>
-vWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
+vWorldXZ = vec2(transformed.x, -transformed.y);`
         );
 
       shader.fragmentShader = shader.fragmentShader

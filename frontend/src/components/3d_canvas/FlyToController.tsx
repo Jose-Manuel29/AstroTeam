@@ -19,6 +19,10 @@ export interface FlyToControllerProps {
   /** Posición de destino de la cámara cuando no hay sitio seleccionado (overview general). */
   overviewCamera?: [number, number, number];
   overviewTarget?: [number, number, number];
+  /** Rotación aplicada al terreno para transformar el target a coordenadas mundiales. */
+  terrainRotation?: [number, number, number];
+  /** Posición (offset) aplicada al grupo del terreno. */
+  terrainPosition?: [number, number, number];
 }
 
 /**
@@ -32,6 +36,8 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
   lerpFactor = 0.06,
   overviewCamera = [0, 52, 95],
   overviewTarget = [0, -10, 0],
+  terrainRotation,
+  terrainPosition,
 }) => {
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const heightAt = useTerrainHeight();
@@ -50,9 +56,34 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
     const p = latLonToPlane(site.lat, site.lon);
     if (!p.inside) return null;
     const target = new THREE.Vector3(p.x, heightAt(p.u, p.v), p.z);
+    if (terrainRotation) {
+      target.applyEuler(new THREE.Euler(...terrainRotation));
+    }
+    if (terrainPosition) {
+      target.add(new THREE.Vector3(...terrainPosition));
+    }
     return { target, camera: target.clone().add(new THREE.Vector3(...offset)) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [site, flightId, heightAt, offset[0], offset[1], offset[2], overviewCamera[0], overviewCamera[1], overviewCamera[2], overviewTarget[0], overviewTarget[1], overviewTarget[2]]);
+  }, [
+    site,
+    flightId,
+    heightAt,
+    offset[0],
+    offset[1],
+    offset[2],
+    overviewCamera[0],
+    overviewCamera[1],
+    overviewCamera[2],
+    overviewTarget[0],
+    overviewTarget[1],
+    overviewTarget[2],
+    terrainRotation?.[0],
+    terrainRotation?.[1],
+    terrainRotation?.[2],
+    terrainPosition?.[0],
+    terrainPosition?.[1],
+    terrainPosition?.[2],
+  ]);
 
   useEffect(() => {
     flying.current = goal !== null;

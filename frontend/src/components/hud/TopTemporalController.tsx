@@ -70,89 +70,97 @@ export const TemporalRulerSlider: React.FC<TemporalRulerSliderProps> = ({
   const ticks = Array.from({ length: tickCount }, (_, i) => i);
 
   return (
-    <div
-      className={`group relative flex flex-col justify-center h-[clamp(18px,2.4vh,24px)] select-none pointer-events-auto ${className}`}
-    >
-      {/* Resplandor radial dinámico centrado en el porcentaje activo */}
-      <div
-        aria-hidden="true"
-        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[55%] h-[clamp(16px,2.2vh,22px)] pointer-events-none will-change-transform"
-        style={{
-          left: `${percent}%`,
-          background:
-            "radial-gradient(50% 50% at 50% 50%, rgba(250, 250, 250, 0.65) 0%, rgba(255, 255, 255, 0) 100%)",
-        }}
-      />
+    <div className={`flex flex-col items-center pointer-events-auto ${className}`}>
+      {/* Título indicador superior con viñeta amarilla táctica a la derecha */}
+      <div className="flex items-center justify-center gap-1.5 pb-[clamp(0.2rem,0.45vh,0.4rem)] pointer-events-none select-none">
+        <span className="font-heading font-bold text-[clamp(0.68rem,1.15vh,0.78rem)] uppercase tracking-[0.14em] text-palette-cream">
+          Avanzar el reloj
+        </span>
+        <span className="w-1.5 h-1.5 rounded-full bg-[#FACC15] shadow-[0_0_8px_#FACC15] inline-block" />
+      </div>
 
-      {/* Contenedor fluido de la regla (100% ancho relativo sin píxeles fijos) */}
-      <div
-        aria-hidden="true"
-        className="relative flex items-center justify-between w-full h-[clamp(10px,1.5vh,14px)] pointer-events-none"
-      >
-        {/* Línea horizontal central luminosa */}
+      <div className="group relative flex flex-col justify-center w-full h-[clamp(18px,2.4vh,24px)] select-none">
+        {/* Resplandor radial dinámico centrado en el porcentaje activo */}
         <div
-          className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1.5px] bg-[#F8F6F4]"
-          style={{ boxShadow: "0px 0px 16px #FAFAFA" }}
+          aria-hidden="true"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[55%] h-[clamp(16px,2.2vh,22px)] pointer-events-none will-change-transform"
+          style={{
+            left: `${percent}%`,
+            background:
+              "radial-gradient(50% 50% at 50% 50%, rgba(250, 250, 250, 0.65) 0%, rgba(255, 255, 255, 0) 100%)",
+          }}
         />
 
-        {/* Marcas verticales distribuidas con Flexbox (principales cada 6 intervalos) */}
-        {ticks.map((idx) => {
-          const isMajor = idx % 6 === 0;
-          return (
-            <div
-              key={idx}
-              className={`w-[1.5px] bg-[#F8F6F4] transition-opacity ${
-                isMajor
-                  ? "h-[clamp(10px,1.5vh,14px)] opacity-100"
-                  : "h-[clamp(7px,1.1vh,10px)] opacity-75"
-              }`}
-            />
-          );
-        })}
-
-        {/* Cursor / Thumb luminoso en la posición actual */}
+        {/* Contenedor fluido de la regla (100% ancho relativo sin píxeles fijos) */}
         <div
+          aria-hidden="true"
+          className="relative flex items-center justify-between w-full h-[clamp(10px,1.5vh,14px)] pointer-events-none"
+        >
+          {/* Línea horizontal central luminosa */}
+          <div
+            className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1.5px] bg-[#F8F6F4]"
+            style={{ boxShadow: "0px 0px 16px #FAFAFA" }}
+          />
+
+          {/* Marcas verticales distribuidas con Flexbox (principales cada 6 intervalos) */}
+          {ticks.map((idx) => {
+            const isMajor = idx % 6 === 0;
+            return (
+              <div
+                key={idx}
+                className={`w-[1.5px] bg-[#F8F6F4] transition-opacity ${
+                  isMajor
+                    ? "h-[clamp(10px,1.5vh,14px)] opacity-100"
+                    : "h-[clamp(7px,1.1vh,10px)] opacity-75"
+                }`}
+              />
+            );
+          })}
+
+          {/* Cursor / Thumb luminoso con toque amarillo coordinado */}
+          <div
+            className="
+              absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[clamp(6px,0.8vh,8px)] h-[clamp(13px,1.9vh,18px)]
+              rounded-full bg-[#FFFFFF] border border-[#FACC15]/80 shadow-[0_0_10px_rgba(250,204,21,0.55)]
+              group-hover:scale-110 transition-transform duration-100
+            "
+            style={{ left: `${percent}%` }}
+          />
+        </div>
+
+        {/* Badge inferior con hora UTC + telemetría solar inyectada (reubicado debajo del slider) */}
+        <div
+          aria-hidden="true"
           className="
-            absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[clamp(6px,0.8vh,8px)] h-[clamp(13px,1.9vh,18px)]
-            rounded-full bg-[#FFFFFF] shadow-[0_0_12px_#FAFAFA]
-            group-hover:scale-110 transition-transform duration-100
+            absolute top-[calc(100%+clamp(5px,0.7vh,9px))] -translate-x-1/2 px-[clamp(0.45rem,0.7vw,0.625rem)] py-[0.15vh] rounded-full
+            bg-[#0D0D0D]/90 border border-white/15 backdrop-blur-md
+            font-sans text-[clamp(0.625rem,1.15vh,0.6875rem)] leading-[1.3] text-[#FAFAFA] whitespace-nowrap tabular-nums
+            flex items-center gap-2 shadow-md
+            opacity-85 group-hover:opacity-100 transition-opacity pointer-events-none z-20
           "
           style={{ left: `${percent}%` }}
+        >
+          <span className="font-medium">{formatValue(value)}</span>
+          {telemetryBadge && (
+            <>
+              <span className="text-white/25">|</span>
+              <span className="text-[#D9CEC5] font-light">{telemetryBadge}</span>
+            </>
+          )}
+        </div>
+
+        {/* Input range nativo accesible */}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          aria-label="Mission time slider"
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30 m-0"
         />
       </div>
-
-      {/* Tooltip superior con hora UTC + telemetría inyectada */}
-      <div
-        aria-hidden="true"
-        className="
-          absolute -top-[clamp(20px,2.7vh,26px)] -translate-x-1/2 px-[clamp(0.45rem,0.7vw,0.625rem)] py-[0.15vh] rounded-full
-          bg-[#0D0D0D]/85 border border-white/15 backdrop-blur-md
-          font-sans text-[clamp(0.625rem,1.15vh,0.6875rem)] leading-[1.3] text-[#FAFAFA] whitespace-nowrap tabular-nums
-          flex items-center gap-2 shadow-md
-          opacity-85 group-hover:opacity-100 transition-opacity pointer-events-none
-        "
-        style={{ left: `${percent}%` }}
-      >
-        <span className="font-medium">{formatValue(value)}</span>
-        {telemetryBadge && (
-          <>
-            <span className="text-white/25">|</span>
-            <span className="text-[#D9CEC5] font-light">{telemetryBadge}</span>
-          </>
-        )}
-      </div>
-
-      {/* Input range nativo accesible */}
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        aria-label="Mission time slider"
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30 m-0"
-      />
     </div>
   );
 };
@@ -284,11 +292,11 @@ export const TopTemporalController: React.FC<TopTemporalControllerProps> = ({
   dateIso,
   onChangeDate,
   telemetryBadge,
-  className = "absolute left-1/2 -translate-x-1/2 top-[clamp(2rem,4.5vh,2.75rem)] z-20",
+  className = "absolute left-1/2 -translate-x-1/2 top-[clamp(1.25rem,3vh,2rem)] z-20",
 }) => {
   return (
     <div
-      className={`flex flex-col items-center gap-[clamp(0.4rem,1.15vh,0.75rem)] pointer-events-none ${className}`}
+      className={`flex flex-col items-center pointer-events-none ${className}`}
     >
       <TemporalRulerSlider
         value={hour}
@@ -296,7 +304,10 @@ export const TopTemporalController: React.FC<TopTemporalControllerProps> = ({
         telemetryBadge={telemetryBadge}
       />
 
-      <MissionDatePicker dateIso={dateIso} onChangeDate={onChangeDate} />
+      {/* Picker de fecha recorrido hacia abajo con margen holgado para no colisionar con la telemetría inferior */}
+      <div className="mt-[clamp(1.6rem,3.2vh,2.35rem)] pointer-events-auto">
+        <MissionDatePicker dateIso={dateIso} onChangeDate={onChangeDate} />
+      </div>
     </div>
   );
 };
