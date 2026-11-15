@@ -69,34 +69,59 @@ git push origin main
 ---
 
 ### Paso 2: Conectar Frontend, FastAPI y Supabase
-El catálogo y los cronogramas viven en Supabase. La carga del nuevo pipeline se hace directamente de JPL Horizons a Supabase; no requiere JSON como fuente de producción.
+El catálogo y los cronogramas viven en Supabase. La aplicación final no lee el JSON del compañero.
 
-1. Carga seis registros en `lunar_sites`: Shackleton, Malapert, Connecting Ridge, Faustini, Cabeus (`cabeus`) y De Gerlache (`de-gerlache`). Para Cabeus, el centro oficial es aprox. 85.33°S, 42.13°O; para De Gerlache, 88.48°S, 88.34°O. Se verificaron en el [nomenclátor USGS/IAU de la Luna](https://planetarynames.wr.usgs.gov/Page/MOON/target) y su [KMZ de centros lunares](https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MOON_nomenclature_center_pts.kmz). Son centros de cráter, no puntos de aterrizaje; altitud y perfil local deben venir del DEM.
-2. Obtén y carga el perfil topográfico real de cada sitio en `site_horizon_profile` (puntos de azimut 0–<360° y elevación angular del horizonte respecto al plano local). El pipeline no genera ni finge esos perfiles.
-3. Revisa y ejecuta manualmente [`supabase_horizons_migration.sql`](C:/xampp/nasa/AstroTeam/backend/scripts/supabase_horizons_migration.sql) desde el SQL Editor de Supabase. Agrega `default_horizon_elevation_deg`, `site_horizon_profile`, unicidad por sitio/fecha y políticas públicas de lectura. Antes, resuelve cualquier duplicado existente de `(site_id, fecha_hora)`.
-4. En el entorno local del backend configura `SUPABASE_URL`, `SUPABASE_KEY` y `SUPABASE_SERVICE_ROLE_KEY`. La clave de servicio solo permanece en el backend; no se configura en Vercel/frontend.
-5. Desde `backend/`, genera y guarda 30 días de puntos horarios con `python scripts/sync_horizons.py --days 30`. Opcionales: `--site-id <id>` y `--start-utc 2026-11-15T00:00:00Z`. El proceso consulta Sol y Tierra a JPL, calcula visibilidad según el perfil, distancia, latencia de un sentido y fase, y hace upsert de 720 puntos por sitio. También guarda elevación de la Tierra, necesaria para decidir LOS.
-6. FastAPI consulta Supabase. El frontend obtiene el catálogo con `GET /api/sites` y, al elegir un sitio, descarga una vez `GET /api/sites/{site_id}/timeline`; conserva los puntos en memoria mientras se mueve el slider. No debe pedir datos a Horizons ni a Supabase en cada movimiento.
+1. Los seis IDs y coordenadas se encuentran en `backend/data/analysis_sites.csv`. Los DEMs LOLA ya están en `backend/raw_data/`; Faustini se conserva como punto interior con el ID histórico `faustini-rim`.
+2. Desde `backend/`, el extractor produce `datos/dem_site_elevations.csv` y un perfil de 360 azimuts por sitio:
+   ```powershell
+   .\venv\Scripts\python.exe scripts\extract_dem_profiles.py --overwrite
+   ```
+   Usa interpolación bilineal, 0 m de altura de observador y curvatura lunar.
+3. El cronograma de 30 días ya se generó desde JPL Horizons, con altitudes DEM y paso horario: `backend/datos/horizons_timeline.csv` (15-nov-2026 08:00 UTC a 15-dic-2026 07:00 UTC; 720 puntos por sitio).
+4. El SQL completo se genera con:
+   ```powershell
+   .\venv\Scripts\python.exe scripts\generate_supabase_setup_sql.py --overwrite
+   ```
+   Abre `backend/datos/supabase_horizons_setup.sql` y ejecuta su contenido completo en el SQL Editor de Supabase. Es idempotente y no elimina filas: aplica la migración y carga seis sitios, 2,160 puntos de horizonte y 4,320 puntos horarios. La consulta debe ejecutarse después de que existan las tablas base `lunar_sites` y `site_cronograma`.
+5. Para comprobar la carga en Supabase, espera 6 sitios, 360 perfiles por sitio y 720 filas de cronograma por sitio:
+   ```sql
+   SELECT count(*) AS sitios FROM public.lunar_sites;
+   SELECT site_id, count(*) AS puntos
+   FROM public.site_horizon_profile GROUP BY site_id ORDER BY site_id;
+   SELECT site_id, count(*) AS puntos
+   FROM public.site_cronograma
+   WHERE fecha_hora >= TIMESTAMPTZ '2026-11-15 08:00:00+00'
+     AND fecha_hora <= TIMESTAMPTZ '2026-12-15 07:00:00+00'
+   GROUP BY site_id ORDER BY site_id;
+   ```
+6. Después de la carga, inicia FastAPI desde `backend/`:
+   ```powershell
+   .\venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+   ```
+   Prueba `GET http://localhost:8000/api/sites` y `GET http://localhost:8000/api/sites/shackleton-rim/timeline`; el segundo debe devolver 720 puntos. El archivo `backend/.env` contiene la clave pública para lecturas. El SQL Editor realiza la carga inicial; `SUPABASE_SERVICE_ROLE_KEY` solo se necesita si luego ejecutas `scripts/seed_supabase_dem.py` o `scripts/sync_horizons.py` para escribir desde Python. Nunca la pongas en Vercel.
+7. El frontend descarga el catálogo y, al seleccionar un sitio, una vez el timeline; conserva los puntos en memoria para el slider. No debe consultar Horizons ni Supabase en cada movimiento.
 
-Las rutas antiguas [`import_teammate_data.py`](C:/xampp/nasa/AstroTeam/backend/scripts/import_teammate_data.py) y `generate_presets.py` quedan fuera del flujo nuevo; los presets/SQL generados anteriormente incluyen datos sintéticos y no deben usarse como fuente ni ejecutarse. `GET /api/sites/{site_id}` ya no inventa un horizonte: requiere un perfil real y responde con error si falta. Aún no se ha aplicado la migración ni se han insertado sitios, perfiles o cronogramas en la base remota.
+Las banderas actuales distinguen los tres criterios del disco: `sol_estado_luz` / `linea_vista_directa` evalúan el centro; `sol_parte_visible` / `tierra_parte_visible` indican que asoma cualquier parte; y `sol_disco_completo_visible` / `tierra_disco_completo_visible` indican que el disco entero supera el horizonte. Las cuentas regresivas de eventos siguen basadas en el centro.
 
-**Pendiente del frontend:** al seleccionar el índice del slider, mostrar elevación y azimut del Sol, estado de iluminación, azimut de la Tierra, LOS directa, distancia Tierra-Luna, latencia de comunicación y ángulo de fase terrestre. La respuesta incluye también elevación de la Tierra para depurar/representar LOS. `earth_latency_rtt_sec` es ida y vuelta; la base guarda la latencia unidireccional.
+Los generadores antiguos [`import_teammate_data.py`](scripts/import_teammate_data.py) y `generate_presets.py` no se usan como fuente del pipeline final. El estado actual es: datos DEM y cronograma generados localmente; falta ejecutar el SQL en la base remota y hacer la prueba HTTP con esas filas.
+
+**Pendiente del frontend:** mostrar elevación/azimut, banderas de centro/parte/disco completo, distancia, latencia y fase terrestre. `earth_latency_rtt_sec` es ida y vuelta; la base guarda latencia unidireccional.
 
 ---
 
 ### Paso 3: Coordinación con el Compañero de Extracción de Datos
-1. **Qué debe hacer tu compañero**:
-   - Descargar desde NASA Moon Trek o NASA PDS:
-     * `lola_dem.tif` (Mapa de elevación LOLA 75°S en escala de grises, proyección polar estereográfica).
-     * `wac_mosaic.tif` (Mosaico de albedo visible LROC WAC).
-   - Colocar ambos archivos en `backend/raw_data/` (esta carpeta está ignorada en `.gitignore` para no saturar Git).
-2. **Qué debes hacer tú cuando los recibas**:
-   - Ejecutar el pipeline de GDAL desde la terminal de PowerShell:
+1. Los dos GeoTIFFs LOLA ya están en `backend/raw_data/` y se procesaron. El mosaico `wac_mosaic.tif` aún no está; solo hace falta para generar texturas visuales, no para el backend de Horizons.
+2. Para volver a calcular perfiles y elevaciones, ejecutar desde `backend/`:
+     ```powershell
+     .\venv\Scripts\python.exe scripts\extract_dem_profiles.py --overwrite
+     ```
+     El script genera CSVs bajo `backend/datos/`; no escribe en Supabase. Para actualizar luego Horizons y el SQL de carga, ejecutar `scripts/generate_horizons_data.py` y `scripts/generate_supabase_setup_sql.py`.
+3. Para producir texturas 3D, primero descargar el mosaico WAC; después ejecutar el pipeline GDAL:
      ```powershell
      cd C:\xampp\nasa\AstroTeam\backend
      python gdal_pipeline/process_terrain.py
      ```
-   - Esto producirá automáticamente en `output/textures/`:
+     Esto producirá en `output/textures/`:
      * `displacement_lola_2k.png` (8-bit escala de grises normalizada para Three.js).
      * `skin_wac_2k.webp` (Textura visual liviana comprimida al 80%).
 
@@ -147,13 +172,13 @@ Para permitir que los evaluadores seleccionen cualquier punto libre de la Luna:
 
 | Hito | Emisor | Receptor | Archivo / Recurso | Estado |
 | :--- | :--- | :--- | :--- | :--- |
-| **Modelo relacional** | Rol 1 (Tú) | Supabase | `lunar_sites`, `site_cronograma`, `site_horizon_profile` | ⏳ Migración pendiente |
-| **Conexión FastAPI-Supabase** | Rol 1 (Tú) | Supabase | Catálogo, perfil y timeline | ✅ Lecturas probadas previamente; requiere migración nueva |
-| **Metadatos y perfiles reales de 6 sitios** | Rol 2 (Datos) / Rol 1 (Tú) | Supabase | Coordenadas y perfiles topográficos | ⏳ Pendiente |
-| **Cronograma JPL horario (30 días)** | Rol 1 (Tú) | Horizons → Supabase | `scripts/sync_horizons.py` | ⏳ Pendiente de ejecutar |
-| **Slider y paneles conectados** | Rol 4 (Front) | FastAPI | 8 indicadores del timeline; una carga por sitio | ⏳ Pendiente |
-| **Variables de entorno y RLS de producción** | Rol 1 (Tú) | Backend / Supabase | URL, clave de lectura y clave privada de servidor | ⏳ Pendiente |
-| **GeoTIFFs Crudos** | Rol 2 (Datos) | Rol 1 (Tú) | `raw_data/*.tif` | ⏳ Pendiente descarga |
-| **Texturas 3D** | Rol 1 (Tú) | Rol 3 (3D) | `output/textures/displacement_lola_2k.png` | ⏳ Corre tras recibir TIFs |
+| **Modelo relacional** | Rol 1 (Tú) | Supabase | Migración y seed en `datos/supabase_horizons_setup.sql` | ⏳ Ejecutar SQL |
+| **Conexión FastAPI-Supabase** | Rol 1 (Tú) | Supabase | Catálogo, perfiles y timeline | ⏳ Validar tras ejecutar SQL |
+| **Metadatos y perfiles reales de 6 sitios** | Rol 1 (Tú) | DEM → Supabase | 6 sitios y 2,160 puntos listos localmente | ✅ CSVs y SQL listos |
+| **Cronograma JPL horario (30 días)** | Rol 1 (Tú) | Horizons → Supabase | 4,320 puntos generados | ✅ CSV y SQL listos |
+| **Slider y paneles conectados** | Rol 4 (Front) | FastAPI | Centro, disco parcial/completo, distancia y latencia | ⏳ Pendiente |
+| **Variables de entorno y RLS de producción** | Rol 1 (Tú) | Backend / Supabase | Clave pública configurada; SQL RLS listo | ⏳ Aplicar SQL; falta clave privada solo para futuras escrituras Python |
+| **GeoTIFFs Crudos** | Rol 2 (Datos) | Rol 1 (Tú) | Dos DEM LOLA en `raw_data/` | ✅ Descargados y procesados |
+| **Texturas 3D** | Rol 1 (Tú) | Rol 3 (3D) | `output/textures/displacement_lola_2k.png` | ⏳ Falta el mosaico WAC |
 | **Endpoints en Vivo**| Rol 1 (Tú) | Rol 4 (Front) | `POST /api/custom-site` | ✅ Listo |
 | **Contrato Técnico** | Rol 1 (Tú) | Todo el equipo | `docs/CONTRATO_ESPECIFICACIONES.md` | ✅ Listo |

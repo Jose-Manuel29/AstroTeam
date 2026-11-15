@@ -10,6 +10,40 @@ from typing import List, Dict, Optional, Tuple
 from app.schemas import HorizonPoint, VisibilityCountdown
 from app.ephemeris import get_selenographic_ephemeris, compute_topocentric_target
 
+SUN_RADIUS_KM = 695_700.0
+EARTH_RADIUS_KM = 6_378.137
+
+
+def target_disk_visibility(
+    center_elevation_deg: float,
+    horizon_elevation_deg: float,
+    distance_km: float,
+    radius_km: float,
+) -> Dict[str, bool]:
+    if not all(
+        math.isfinite(value)
+        for value in (
+            center_elevation_deg,
+            horizon_elevation_deg,
+            distance_km,
+            radius_km,
+        )
+    ) or distance_km <= 0 or radius_km <= 0:
+        raise ValueError("Target disk visibility requires finite positive distances.")
+
+    angular_radius_deg = math.degrees(
+        math.asin(min(1.0, radius_km / distance_km))
+    )
+    return {
+        "center_visible": center_elevation_deg > horizon_elevation_deg,
+        "any_part_visible": (
+            center_elevation_deg + angular_radius_deg > horizon_elevation_deg
+        ),
+        "full_disk_visible": (
+            center_elevation_deg - angular_radius_deg > horizon_elevation_deg
+        ),
+    }
+
 
 def interpolate_horizon_elevation(azimuth_deg: float, horizon_profile: List[Dict[str, float]], default_elevation_deg: float = 0.5) -> float:
     """

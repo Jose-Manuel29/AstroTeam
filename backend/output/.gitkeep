@@ -1,2 +1,0 @@
-# Carpeta de salida para archivos JSON estáticos precalculados de efemérides y sitios lunares.
-# Los archivos de aquí son consumidos directamente por el frontend (copiados a public/data/).

@@ -1,0 +1,7 @@
+site_id,display_name,latitude_deg,longitude_east_deg,ground_elevation_m,observer_height_m,observer_altitude_km,elevation_dem,profile_azimuth_step_deg,profile_max_range_km
+shackleton-rim,Borde del cráter Shackleton,-89.684,196.74,1725.304,0.0,1.725304,LDEM_80S_80MPP_ADJ.tiff,1.0,250.0
+malapert-massif,Macizo Malapert,-85.964,357.68,4990.364,0.0,4.990364,LDEM_80S_80MPP_ADJ.tiff,1.0,250.0
+connecting-ridge,Connecting Ridge,-89.457,222.51,1946.785,0.0,1.946785,LDEM_80S_80MPP_ADJ.tiff,1.0,250.0
+faustini-rim,Interior del cráter Faustini,-87.3,84.3,-2715.306,0.0,-2.715306,LDEM_80S_80MPP_ADJ.tiff,1.0,250.0
+schrodinger-basin,Cuenca Schrödinger,-75.0,132.4,-4639.592,0.0,-4.639592,LDEM_60S_120MPP_ADJ.tiff,1.0,250.0
+drygalski-crater,Cráter Drygalski,-79.57,272.82,-3175.955,0.0,-3.175955,LDEM_60S_120MPP_ADJ.tiff,1.0,250.0

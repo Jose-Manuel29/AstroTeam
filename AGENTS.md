@@ -5,4 +5,4 @@
 - **Mantenimiento de la Documentación:** Mantener alineado el código y los entregables con los 5 bloques del cronograma y los requerimientos establecidos en el plan.
 
 ## Control de Versiones (Git)
-- **Commits Bajo Autorización:** No realizar commits ni pushes sin la autorización explícita previa del usuario.
+- **Commits Bajo Autorización:** No realizar commits ni pushes sin la autorización explícita previa del usuario./

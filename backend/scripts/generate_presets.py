@@ -1,4 +1,8 @@
 """
+LEGACY SCRIPT: generates static JSON and synthetic horizon data; it is not part
+of the JPL Horizons -> Supabase production workflow. Do not use its outputs as
+scientific data or execute its legacy SQL seed.
+
 Script to generate and precalculate data for the 6 featured lunar sites (sitios estrella).
 Exports:
   1. output/preset_sites.json (Sites metadata, NASA scientific constants & current snapshot)

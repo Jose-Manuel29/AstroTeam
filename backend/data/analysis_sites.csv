@@ -1,0 +1,7 @@
+site_id,display_name,latitude_deg,longitude_east_deg,observer_height_m,output_dir
+shackleton-rim,Borde del cráter Shackleton,-89.684,196.74,0,shackleton-rim
+malapert-massif,Macizo Malapert,-85.964,357.68,0,malapert-massif
+connecting-ridge,Connecting Ridge,-89.457,222.51,0,connecting-ridge
+faustini-rim,Interior del cráter Faustini,-87.3,84.3,0,faustini
+schrodinger-basin,Cuenca Schrödinger,-75.0,132.40,0,schrodinger-basin
+drygalski-crater,Cráter Drygalski,-79.57,272.82,0,drygalski-crater
