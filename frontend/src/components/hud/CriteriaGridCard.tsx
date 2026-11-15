@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { HudCard, HudCardHeader, HudCardBody } from "./HudCard";
 
 export interface CriteriaGridRow {
@@ -21,7 +21,7 @@ export interface CriteriaGridCardProps {
 /**
  * Tarjeta HUD de Grid de 2 Columnas (Parámetros Topográficos y Coordenadas)
  * Construida sobre el esqueleto HudCard (variante ochre).
- * Soporta alternancia interactiva entre vista resumida y vista detallada ("see more").
+ * El botón "ver más" / "see more" solo aparece cuando el contenido tiene overflow.
  */
 export const CriteriaGridCard: React.FC<CriteriaGridCardProps> = ({
   title = "Site Parameters",
@@ -32,8 +32,33 @@ export const CriteriaGridCard: React.FC<CriteriaGridCardProps> = ({
   className = "w-full",
 }) => {
   const [showExpanded, setShowExpanded] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
 
-  const activeRows = showExpanded && expandedRows ? expandedRows : rows;
+  // Si se proveen filas expandidas, combinamos para evaluar overflow
+  const allRows = useMemo(() => {
+    if (!expandedRows || expandedRows.length === 0) return rows;
+    return [...rows, ...expandedRows];
+  }, [rows, expandedRows]);
+
+  const displayedRows = showExpanded ? allRows : (expandedRows ? allRows : rows);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+
+    const checkOverflow = () => {
+      const isOverflowing = el.scrollHeight > el.clientHeight + 1;
+      setHasOverflow(isOverflowing);
+    };
+
+    checkOverflow();
+
+    const ro = new ResizeObserver(checkOverflow);
+    ro.observe(el);
+
+    return () => ro.disconnect();
+  }, [displayedRows, showExpanded]);
 
   const handleAction = () => {
     if (expandedRows) {
@@ -41,6 +66,9 @@ export const CriteriaGridCard: React.FC<CriteriaGridCardProps> = ({
     }
     onActionClick?.();
   };
+
+  const showActionButton =
+    (expandedRows || onActionClick) && (hasOverflow || showExpanded);
 
   return (
     <HudCard
@@ -53,7 +81,7 @@ export const CriteriaGridCard: React.FC<CriteriaGridCardProps> = ({
         title={title}
         size="md"
         action={
-          (expandedRows || onActionClick) && (
+          showActionButton ? (
             <button
               type="button"
               onClick={handleAction}
@@ -61,12 +89,21 @@ export const CriteriaGridCard: React.FC<CriteriaGridCardProps> = ({
             >
               {showExpanded ? "see less" : actionLabel}
             </button>
-          )
+          ) : undefined
         }
       />
 
-      <HudCardBody className="gap-[clamp(0.12rem,0.45vh,0.35rem)]">
-        {activeRows.map((row) => (
+      <HudCardBody
+        ref={bodyRef}
+        className={`gap-[clamp(0.12rem,0.45vh,0.35rem)] transition-all duration-300 ${
+          showExpanded
+            ? "max-h-[clamp(180px,32vh,320px)] overflow-y-auto pr-0.5"
+            : expandedRows
+            ? "max-h-[clamp(90px,15vh,135px)] overflow-hidden"
+            : ""
+        }`}
+      >
+        {displayedRows.map((row) => (
           <div
             key={row.id}
             className="grid grid-cols-2 gap-x-[1vw] items-center px-[clamp(0.35rem,0.5vw,0.45rem)] py-[clamp(0.14rem,0.4vh,0.3rem)] rounded-[clamp(4px,0.6vh,6px)] bg-palette-charcoal/30 border border-white/5 w-full"

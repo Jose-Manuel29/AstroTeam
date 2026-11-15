@@ -149,6 +149,10 @@ const CameraTracker: React.FC<CameraTrackerProps> = ({ onUpdate }) => {
 export interface CameraConfig {
   initialPosition?: [number, number, number];
   target?: [number, number, number];
+  /** Posición de cámara para la vista general (overview alejado y elevado) */
+  overviewPosition?: [number, number, number];
+  /** Punto de enfoque para la vista general */
+  overviewTarget?: [number, number, number];
   fov?: number;
   near?: number;
   far?: number;
@@ -216,7 +220,13 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
   const terrainRotation: [number, number, number] = terrain?.rotation ?? [0, 0, 0];
   const terrainPosition: [number, number, number] = terrain?.position ?? [0, 0, 0];
   const camTarget: [number, number, number] = camera?.target ?? [0, -10, 0];
-  const initialCamPos: [number, number, number] = camera?.initialPosition ?? [0, 52, 95];
+  const initialCamPos: [number, number, number] = camera?.initialPosition ?? [32, 14, 51.2];
+  const overviewCamPos: [number, number, number] = camera?.overviewPosition ?? [48, 42, 88];
+  const overviewCamTarget: [number, number, number] = camera?.overviewTarget ?? [0, -14, 0];
+
+  // Si activeSite es null (vista general), inicializa la cámara en la perspectiva general elevada
+  const canvasCamPos = activeSite ? initialCamPos : overviewCamPos;
+  const canvasCamTarget = activeSite ? camTarget : overviewCamTarget;
 
   return (
     <div className={className}>
@@ -224,7 +234,7 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
         shadows
         gl={{ alpha: true, antialias: true }}
         camera={{
-          position: initialCamPos,
+          position: canvasCamPos,
           fov: camera?.fov ?? 40,
           near: camera?.near ?? 0.1,
           far: camera?.far ?? 1000,
@@ -326,10 +336,11 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
             offset={camera?.flyOffset ?? [6, 8, 10]}
             targetOffset={camera?.targetOffset}
             lerpFactor={camera?.lerpFactor ?? 0.06}
-            overviewCamera={initialCamPos}
-            overviewTarget={camTarget}
+            overviewCamera={overviewCamPos}
+            overviewTarget={overviewCamTarget}
             terrainRotation={terrainRotation}
             terrainPosition={terrainPosition}
+            terrainSize={terrainSize}
           />
 
           {children}
@@ -338,9 +349,9 @@ export const LunarMapViewer: React.FC<LunarMapViewerProps> = ({
         <OrbitControls
           makeDefault
           enableDamping
-          target={camTarget}
-          minDistance={camera?.minDistance ?? 40}
-          maxDistance={camera?.maxDistance ?? 160}
+          target={canvasCamTarget}
+          minDistance={camera?.minDistance ?? 30}
+          maxDistance={camera?.maxDistance ?? 180}
           maxPolarAngle={Math.PI / 2.05}
         />
 

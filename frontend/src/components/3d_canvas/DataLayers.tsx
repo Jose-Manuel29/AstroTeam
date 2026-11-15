@@ -157,7 +157,7 @@ export const DataLayers: React.FC<DataLayersProps> = ({
           />
         </mesh>
         <lineSegments geometry={edgesGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
-          <lineBasicMaterial color={statusColor} transparent opacity={0.65} toneMapped={false} />
+          <lineBasicMaterial color="#D9CEC5" transparent opacity={0.65} toneMapped={false} />
         </lineSegments>
         <mesh geometry={topRingGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
           <meshBasicMaterial
@@ -173,7 +173,7 @@ export const DataLayers: React.FC<DataLayersProps> = ({
           font={SPACE_MONO_TTF}
           position={[-half, 0.35, half + 0.8]}
           fontSize={0.55}
-          color={statusColor}
+          color="#D9CEC5"
           anchorX="left"
           anchorY="middle"
         >

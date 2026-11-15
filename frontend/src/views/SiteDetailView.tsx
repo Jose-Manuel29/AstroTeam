@@ -154,7 +154,35 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
     () => sites.find((candidate) => candidate.id === siteId) ?? sites[0],
     [sites, siteId]
   );
-  const mapSites = useMemo(() => sites.map(toPresetSite), [sites]);
+
+  const [criteriaValues, setCriteriaValues] = useState({
+    illumination: site.illuminationAvgPercent,
+    earthLink: site.earthVisibilityPercent,
+  });
+
+  useEffect(() => {
+    setCriteriaValues({
+      illumination: site.illuminationAvgPercent,
+      earthLink: site.earthVisibilityPercent,
+    });
+  }, [site]);
+
+  const mapSites = useMemo(() => {
+    return sites.map((candidate) => {
+      const meetsIllum = candidate.illuminationAvgPercent >= criteriaValues.illumination;
+      const meetsDte = candidate.earthVisibilityPercent >= criteriaValues.earthLink;
+      const met = (meetsIllum ? 1 : 0) + (meetsDte ? 1 : 0);
+      const viabilityTier: "optimal" | "marginal" | "critical" =
+        met === 2 ? "optimal" : met === 1 ? "marginal" : "critical";
+      const isViable = met === 2;
+
+      return toPresetSite({
+        ...candidate,
+        viabilityTier,
+        isViable,
+      });
+    });
+  }, [sites, criteriaValues]);
   const [timeline, setTimeline] = useState<SiteTimeline | null>(null);
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
@@ -164,6 +192,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   const [librationError, setLibrationError] = useState<string | null>(null);
   const [librationLoading, setLibrationLoading] = useState(false);
   const [librationRetryKey, setLibrationRetryKey] = useState(0);
+  const [isEphemerisExpanded, setIsEphemerisExpanded] = useState<boolean>(false);
 
   useEffect(() => {
     let active = true;
@@ -174,7 +203,12 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
 
     fetchSiteTimeline(siteId)
       .then((result) => {
-        if (active) setTimeline(result);
+        if (active) {
+          setTimeline(result);
+          if (result.points.length > 0) {
+            setSelectedPointIndex(Math.floor((result.points.length - 1) / 2));
+          }
+        }
       })
       .catch((error: unknown) => {
         if (active) {
@@ -240,7 +274,7 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   const missionDateIso = selectedDate?.toISOString().slice(0, 10) ?? "";
   const hourOfDay = selectedDate
     ? selectedDate.getUTCHours() + selectedDate.getUTCMinutes() / 60
-    : 0;
+    : 12;
 
   const selectNearestPoint = useCallback(
     (dateIso: string, hour: number) => {
@@ -270,18 +304,6 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   const handleChangeDate = (dateIso: string) => {
     selectNearestPoint(dateIso, hourOfDay);
   };
-
-  const [criteriaValues, setCriteriaValues] = useState({
-    illumination: site.illuminationAvgPercent,
-    earthLink: site.earthVisibilityPercent,
-  });
-
-  useEffect(() => {
-    setCriteriaValues({
-      illumination: site.illuminationAvgPercent,
-      earthLink: site.earthVisibilityPercent,
-    });
-  }, [site]);
 
   const sliderItems: CriterionSliderItem[] = useMemo(
     () => [
@@ -542,9 +564,10 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
       setFlightId((n) => n + 1);
     } else {
       setSelectedMapSite(initialPresetSite);
+      onSelectSite?.(initialPresetSite.id);
       setFlightId((n) => n + 1);
     }
-  }, [selectedMapSite, initialPresetSite]);
+  }, [selectedMapSite, initialPresetSite, onSelectSite]);
 
   const handleSelectSiteFromMinimap = useCallback(
     (id: string) => {
@@ -559,7 +582,6 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
   );
 
   useEffect(() => {
-    setAllowMapEntrance(false);
     setSelectedMapSite(overview ? null : initialPresetSite);
     setFlightId((n) => n + 1);
   }, [siteId, initialPresetSite, overview]);
@@ -678,12 +700,14 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
               camera={{
                 initialPosition: [32, 14, 51.2],
                 target: [4.8, -4.5, -7.7],
+                overviewPosition: [48, 42, 88],
+                overviewTarget: [0, -14, 0],
                 fov: 38,
                 flyOffset: [27.2, 21.0, 58.9],
                 targetOffset: [0, 4.5, 0], // Desplaza el punto focal sobre el terreno para que el diorama comience casi tocando el borde inferior
                 lerpFactor: 0.06,
                 minDistance: 30,
-                maxDistance: 150,
+                maxDistance: 180,
               }}
               showStars={false}
               showDebugHud={false}
@@ -726,10 +750,12 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           onChangeDate={handleChangeDate}
           telemetryBadge={
             selectedPoint
-              ? `Sol Az ${selectedPoint.sun_azimuth_deg.toFixed(1)}° · El ${selectedPoint.sun_elevation_deg.toFixed(1)}°`
+              ? `Sun Az ${selectedPoint.sun_azimuth_deg.toFixed(1)}° · El ${
+                  selectedPoint.sun_elevation_deg >= 0 ? "+" : ""
+                }${selectedPoint.sun_elevation_deg.toFixed(1)}°`
               : timelineLoading
-                ? "Cargando efemérides…"
-                : "Efemérides no disponibles"
+                ? "Loading ephemeris…"
+                : "Ephemeris unavailable"
           }
         />
       </div>
@@ -739,18 +765,20 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           Con espaciado vertical suficiente para no solaparse jamás con el botón superior
          ========================================================================= */}
       <aside
-        className="absolute left-[clamp(1rem,3.8vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(250px,22vw,336px)] z-20 flex flex-col justify-start gap-[clamp(0.5rem,1.4vh,1.1rem)] max-h-[calc(100vh-clamp(4.8rem,9.5vh,6.5rem))] pointer-events-none overflow-y-auto pr-1"
+        className="absolute left-[clamp(1rem,3.8vw,4rem)] top-[clamp(4.1rem,8.2vh,5.2rem)] bottom-[clamp(0.5rem,2vh,1.5rem)] w-[clamp(250px,22vw,336px)] z-20 flex flex-col justify-start gap-[clamp(0.4rem,1.2vh,0.9rem)] max-h-[calc(100vh-clamp(4.8rem,9.5vh,6.5rem))] pointer-events-none overflow-y-auto pr-1 py-7 scroll-smooth"
         style={{
           transform: moonArrived ? "translateX(0)" : "translateX(-430px)",
           opacity: moonArrived ? 1 : 0,
           transition: "transform 0.75s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease-out",
+          maskImage: "linear-gradient(to bottom, transparent 0%, black 28px, black calc(100% - 28px), transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 28px, black calc(100% - 28px), transparent 100%)",
         }}
       >
         <CriteriaSlidersCard
           title="Site criteria thresholds"
           items={sliderItems}
           onChange={handleCriterionChange}
-          className="w-full shrink min-h-0 pointer-events-auto"
+          className="w-full shrink-0 min-h-[clamp(135px,18vh,160px)] pointer-events-auto"
         />
 
         <CriteriaKpiCard
@@ -760,213 +788,239 @@ export const SiteDetailView: React.FC<SiteDetailViewProps> = ({
           statusTier={currentStatusTier}
           badgeText={`${metCriteriaCount}/2`}
           subtitle={`${metCriteriaCount} of 2 period-summary thresholds met`}
-          className="w-fit self-start shrink-0 min-h-0 pointer-events-auto"
+          className="w-fit self-start shrink-0 min-h-[clamp(58px,8vh,72px)] pointer-events-auto"
         />
 
         {timelineError && (
           <div
             role="alert"
-            className="pointer-events-auto rounded-xl border border-rose-400/40 bg-rose-950/80 px-3 py-2 text-xs text-rose-100"
+            className="pointer-events-auto rounded-xl border border-rose-400/40 bg-rose-950/80 px-3 py-2 text-xs text-rose-100 shrink-0"
           >
-            <p className="mb-2">No se pudo cargar el timeline: {timelineError}</p>
+            <p className="mb-2">Failed to load timeline: {timelineError}</p>
             <button
               type="button"
               onClick={() => setTimelineRetryKey((key) => key + 1)}
               className="rounded-md border border-rose-200/40 px-2 py-1 hover:bg-rose-200/10"
             >
-              Reintentar
+              Retry
             </button>
           </div>
         )}
 
         <CriteriaIconListCard
           title="Ephemeris at selected UTC"
+          actionLabel="see more"
+          expandedActionLabel="see less"
+          isExpanded={isEphemerisExpanded}
+          onToggleExpand={() => setIsEphemerisExpanded((prev) => !prev)}
           items={iconCriteriaItems}
           onToggleItem={handleToggleIconCriterion}
           footerAction={
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-1 border-t border-white/10 pt-2 text-[10px] font-sans">
-              <div>
-                <dt className="text-palette-cream/70">Sun azimuth / elevation</dt>
-                <dd className="text-[#FAFAFA] tabular-nums">
-                  {selectedPoint
-                    ? `${selectedPoint.sun_azimuth_deg.toFixed(2)}° / ${selectedPoint.sun_elevation_deg.toFixed(2)}°`
-                    : timelineLoading
-                      ? "…"
-                      : "N/D"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-palette-cream/70">Sun disk</dt>
-                <dd className="text-[#FAFAFA]">
-                  {selectedPoint
-                    ? formatDiskVisibility(
-                        selectedPoint.is_sun_full_disk_visible,
-                        selectedPoint.is_sun_any_part_visible
-                      )
-                    : timelineLoading
-                      ? "…"
-                      : "N/D"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-palette-cream/70">Earth azimuth / elevation</dt>
-                <dd className="text-[#FAFAFA] tabular-nums">
-                  {selectedPoint
-                    ? `${selectedPoint.earth_azimuth_deg.toFixed(2)}° / ${selectedPoint.earth_elevation_deg.toFixed(2)}°`
-                    : timelineLoading
-                      ? "…"
-                      : "N/D"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-palette-cream/70">Earth disk</dt>
-                <dd className="text-[#FAFAFA]">
-                  {selectedPoint
-                    ? formatDiskVisibility(
-                        selectedPoint.is_earth_full_disk_visible,
-                        selectedPoint.is_earth_any_part_visible
-                      )
-                    : timelineLoading
-                      ? "…"
-                      : "N/D"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-palette-cream/70">Distance / RTT</dt>
-                <dd className="text-[#FAFAFA] tabular-nums">
-                  {selectedPoint
-                    ? `${Math.round(selectedPoint.earth_distance_km).toLocaleString()} km / ${selectedPoint.earth_latency_rtt_sec.toFixed(2)} s`
-                    : timelineLoading
-                      ? "…"
-                      : "N/D"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-palette-cream/70">Earth phase</dt>
-                <dd className="text-[#FAFAFA] tabular-nums">
-                  {selectedPoint?.earth_phase_angle_deg == null
-                    ? timelineLoading
-                      ? "…"
-                      : "N/D"
-                    : `${selectedPoint.earth_phase_angle_deg.toFixed(2)}°`}
-                </dd>
-              </div>
-              <div className="col-span-2 border-t border-white/10 pt-2">
-                <dt className="text-palette-cream/70">
-                  Libration at selected UTC
-                </dt>
-                <dd className="text-[#FAFAFA]">
-                  {librationLoading
-                    ? "Loading…"
-                    : librationError
-                      ? "Libration unavailable"
-                      : librationData
-                        ? `${librationData.sun_distance_au.toFixed(6)} AU from Sun`
+            <div
+              className={`w-full border-t border-white/10 pt-2 transition-all duration-300 ${
+                isEphemerisExpanded
+                  ? "overflow-y-auto max-h-[clamp(150px,28vh,300px)] pr-1"
+                  : "overflow-hidden"
+              }`}
+              style={
+                isEphemerisExpanded
+                  ? {
+                      maskImage: "linear-gradient(to bottom, black calc(100% - 16px), transparent 100%)",
+                      WebkitMaskImage: "linear-gradient(to bottom, black calc(100% - 16px), transparent 100%)",
+                    }
+                  : undefined
+              }
+            >
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-sans">
+                <div>
+                  <dt className="text-palette-cream/70">Sun azimuth / elevation</dt>
+                  <dd className="text-[#FAFAFA] tabular-nums">
+                    {selectedPoint
+                      ? `${selectedPoint.sun_azimuth_deg.toFixed(2)}° / ${selectedPoint.sun_elevation_deg.toFixed(2)}°`
+                      : timelineLoading
+                        ? "…"
                         : "N/D"}
-                </dd>
-              </div>
-              {selectedPoint && (
-                <>
-                  <div>
-                    <dt className="text-palette-cream/70">
-                      Sun horizon (geometric / terrain)
-                    </dt>
-                    <dd className="text-[#FAFAFA]">
-                      {selectedPoint.sun_elevation_deg > 0 ? "Above" : "Below"}
-                      {" / "}
-                      {selectedPoint.is_sun_visible ? "Clear" : "Blocked"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-palette-cream/70">
-                      Earth horizon (geometric / terrain)
-                    </dt>
-                    <dd className="text-[#FAFAFA]">
-                      {selectedPoint.earth_elevation_deg > 0 ? "Above" : "Below"}
-                      {" / "}
-                      {selectedPoint.is_earth_visible ? "Clear" : "Blocked"}
-                    </dd>
-                  </div>
-                </>
-              )}
-              {librationData && (
-                <>
-                  <div>
-                    <dt className="text-palette-cream/70">
-                      Sub-Earth latitude / longitude
-                    </dt>
-                    <dd className="text-[#FAFAFA] tabular-nums">
-                      {librationData.sub_earth_lat.toFixed(3)}° /{" "}
-                      {librationData.sub_earth_lon.toFixed(3)}°
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-palette-cream/70">
-                      Sub-Solar latitude / longitude
-                    </dt>
-                    <dd className="text-[#FAFAFA] tabular-nums">
-                      {librationData.sub_solar_lat.toFixed(3)}° /{" "}
-                      {librationData.sub_solar_lon.toFixed(3)}°
-                    </dd>
-                  </div>
-                </>
-              )}
-              {selectedPoint && (
-                <>
-                  <div>
-                    <dt className="text-palette-cream/70">
-                      Next solar transition (hourly estimate)
-                    </dt>
-                    <dd className="text-[#FAFAFA] tabular-nums">
-                      {nextSunTransition
-                        ? `${selectedPoint.is_sun_visible ? "Sunset" : "Sunrise"} · ${formatExactUtc(nextSunTransition.timestamp_utc)} · ${formatCountdownSeconds(
-                            (Date.parse(nextSunTransition.timestamp_utc) -
-                              Date.parse(selectedPoint.timestamp_utc)) /
-                              1000
-                          )}`
-                        : "N/D · outside forecast"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-palette-cream/70">
-                      Next Earth transition (hourly estimate)
-                    </dt>
-                    <dd className="text-[#FAFAFA] tabular-nums">
-                      {nextEarthTransition
-                        ? `${selectedPoint.is_earth_visible ? "Earth set" : "Earth rise"} · ${formatExactUtc(nextEarthTransition.timestamp_utc)} · ${formatCountdownSeconds(
-                            (Date.parse(nextEarthTransition.timestamp_utc) -
-                              Date.parse(selectedPoint.timestamp_utc)) /
-                              1000
-                          )}`
-                        : "N/D · outside forecast"}
-                    </dd>
-                  </div>
-                </>
-              )}
-              {librationError && (
-                <div className="col-span-2" role="alert">
-                  <dt className="text-rose-200/80">Libration error</dt>
-                  <dd className="mt-1 flex items-center justify-between gap-2 text-rose-100">
-                    <span className="min-w-0 break-words">{librationError}</span>
-                    <button
-                      type="button"
-                      onClick={() => setLibrationRetryKey((key) => key + 1)}
-                      className="shrink-0 rounded-md border border-rose-200/40 px-2 py-1 hover:bg-rose-200/10"
-                    >
-                      Retry
-                    </button>
                   </dd>
                 </div>
-              )}
-            </dl>
+                <div>
+                  <dt className="text-palette-cream/70">Sun disk</dt>
+                  <dd className="text-[#FAFAFA]">
+                    {selectedPoint
+                      ? formatDiskVisibility(
+                          selectedPoint.is_sun_full_disk_visible,
+                          selectedPoint.is_sun_any_part_visible
+                        )
+                      : timelineLoading
+                        ? "…"
+                        : "N/D"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-palette-cream/70">Earth azimuth / elevation</dt>
+                  <dd className="text-[#FAFAFA] tabular-nums">
+                    {selectedPoint
+                      ? `${selectedPoint.earth_azimuth_deg.toFixed(2)}° / ${selectedPoint.earth_elevation_deg.toFixed(2)}°`
+                      : timelineLoading
+                        ? "…"
+                        : "N/D"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-palette-cream/70">Earth disk</dt>
+                  <dd className="text-[#FAFAFA]">
+                    {selectedPoint
+                      ? formatDiskVisibility(
+                          selectedPoint.is_earth_full_disk_visible,
+                          selectedPoint.is_earth_any_part_visible
+                        )
+                      : timelineLoading
+                        ? "…"
+                        : "N/D"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-palette-cream/70">Distance / RTT</dt>
+                  <dd className="text-[#FAFAFA] tabular-nums">
+                    {selectedPoint
+                      ? `${Math.round(selectedPoint.earth_distance_km).toLocaleString()} km / ${selectedPoint.earth_latency_rtt_sec.toFixed(2)} s`
+                      : timelineLoading
+                        ? "…"
+                        : "N/D"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-palette-cream/70">Earth phase</dt>
+                  <dd className="text-[#FAFAFA] tabular-nums">
+                    {selectedPoint?.earth_phase_angle_deg == null
+                      ? timelineLoading
+                        ? "…"
+                        : "N/D"
+                      : `${selectedPoint.earth_phase_angle_deg.toFixed(2)}°`}
+                  </dd>
+                </div>
+
+                {/* Métricas extendidas desplegables con "see more" */}
+                {isEphemerisExpanded && (
+                  <>
+                    <div className="col-span-2 border-t border-white/10 pt-2">
+                      <dt className="text-palette-cream/70">
+                        Libration at selected UTC
+                      </dt>
+                      <dd className="text-[#FAFAFA]">
+                        {librationLoading
+                          ? "Loading…"
+                          : librationError
+                            ? "Libration unavailable"
+                            : librationData
+                              ? `${librationData.sun_distance_au.toFixed(6)} AU from Sun`
+                              : "N/D"}
+                      </dd>
+                    </div>
+                    {selectedPoint && (
+                      <>
+                        <div>
+                          <dt className="text-palette-cream/70">
+                            Sun horizon (geometric / terrain)
+                          </dt>
+                          <dd className="text-[#FAFAFA]">
+                            {selectedPoint.sun_elevation_deg > 0 ? "Above" : "Below"}
+                            {" / "}
+                            {selectedPoint.is_sun_visible ? "Clear" : "Blocked"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-palette-cream/70">
+                            Earth horizon (geometric / terrain)
+                          </dt>
+                          <dd className="text-[#FAFAFA]">
+                            {selectedPoint.earth_elevation_deg > 0 ? "Above" : "Below"}
+                            {" / "}
+                            {selectedPoint.is_earth_visible ? "Clear" : "Blocked"}
+                          </dd>
+                        </div>
+                      </>
+                    )}
+                    {librationData && (
+                      <>
+                        <div>
+                          <dt className="text-palette-cream/70">
+                            Sub-Earth latitude / longitude
+                          </dt>
+                          <dd className="text-[#FAFAFA] tabular-nums">
+                            {librationData.sub_earth_lat.toFixed(3)}° /{" "}
+                            {librationData.sub_earth_lon.toFixed(3)}°
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-palette-cream/70">
+                            Sub-Solar latitude / longitude
+                          </dt>
+                          <dd className="text-[#FAFAFA] tabular-nums">
+                            {librationData.sub_solar_lat.toFixed(3)}° /{" "}
+                            {librationData.sub_solar_lon.toFixed(3)}°
+                          </dd>
+                        </div>
+                      </>
+                    )}
+                    {selectedPoint && (
+                      <>
+                        <div>
+                          <dt className="text-palette-cream/70">
+                            Next solar transition (hourly estimate)
+                          </dt>
+                          <dd className="text-[#FAFAFA] tabular-nums">
+                            {nextSunTransition
+                              ? `${selectedPoint.is_sun_visible ? "Sunset" : "Sunrise"} · ${formatExactUtc(nextSunTransition.timestamp_utc)} · ${formatCountdownSeconds(
+                                  (Date.parse(nextSunTransition.timestamp_utc) -
+                                    Date.parse(selectedPoint.timestamp_utc)) /
+                                    1000
+                                )}`
+                              : "N/D · outside forecast"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-palette-cream/70">
+                            Next Earth transition (hourly estimate)
+                          </dt>
+                          <dd className="text-[#FAFAFA] tabular-nums">
+                            {nextEarthTransition
+                              ? `${selectedPoint.is_earth_visible ? "Earth set" : "Earth rise"} · ${formatExactUtc(nextEarthTransition.timestamp_utc)} · ${formatCountdownSeconds(
+                                  (Date.parse(nextEarthTransition.timestamp_utc) -
+                                    Date.parse(selectedPoint.timestamp_utc)) /
+                                    1000
+                                )}`
+                              : "N/D · outside forecast"}
+                          </dd>
+                        </div>
+                      </>
+                    )}
+                    {librationError && (
+                      <div className="col-span-2" role="alert">
+                        <dt className="text-rose-200/80">Libration error</dt>
+                        <dd className="mt-1 flex items-center justify-between gap-2 text-rose-100">
+                          <span className="min-w-0 break-words">{librationError}</span>
+                          <button
+                            type="button"
+                            onClick={() => setLibrationRetryKey((key) => key + 1)}
+                            className="shrink-0 rounded-md border border-rose-200/40 px-2 py-1 hover:bg-rose-200/10"
+                          >
+                            Retry
+                          </button>
+                        </dd>
+                      </div>
+                    )}
+                  </>
+                )}
+              </dl>
+            </div>
           }
-          className="w-full shrink min-h-0 pointer-events-auto"
+          className="w-full shrink min-h-0 max-h-[clamp(220px,42vh,460px)] flex flex-col pointer-events-auto transition-all duration-300"
         />
 
         <MapLegendCard
           mode="detail"
           title="Terrain & Vector Symbology"
-          className="w-full shrink min-h-0 pointer-events-auto"
+          className="w-full shrink-0 min-h-[clamp(175px,24vh,215px)] pointer-events-auto"
         />
       </aside>
 

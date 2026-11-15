@@ -7,7 +7,6 @@ import * as THREE from "three";
 import type { PresetSite } from "@/lib/context/SiteContext";
 import { latLonToPlane, type PlaneCoords } from "@/lib/geo/polarStereo";
 import { useTerrainHeight } from "@/lib/geo/useTerrainHeight";
-import { getSiteZoneKm } from "@/components/3d_canvas/SiteZonesOverlay";
 
 export interface SiteMarkersProps {
   sites: PresetSite[];
@@ -44,10 +43,10 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
   poleHeight,
   onSelectSite,
 }) => {
-  const currentHeight = active ? poleHeight * 1.4 : poleHeight;
+  const [isHovered, setIsHovered] = React.useState(false);
+  const currentHeight = active ? poleHeight * 1.35 : poleHeight;
   const radius = 0.025; // grosor (diámetro) = 0.05
 
-  const zoneKm = getSiteZoneKm(site.id);
   const htmlRef = useRef<HTMLDivElement>(null);
 
   const markerPosition = useMemo(
@@ -55,32 +54,49 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
     [p.x, y, p.z, currentHeight]
   );
 
-  // Control estricto de escala:
-  // - A distancia normal/lejana se mantiene en escala 1.0 (nunca se sobredimensiona)
-  // - Al acercarse mucho (< 25 u), se contrae suavemente hasta 0.70x para no tapar el cráter
+  // Control estricto de escala al acercarse o alejarse
   useFrame(({ camera }) => {
     if (!htmlRef.current) return;
     const distance = camera.position.distanceTo(markerPosition);
-    const dynamicScale = THREE.MathUtils.clamp(distance / 25, 0.7, 1.0);
+    const dynamicScale = THREE.MathUtils.clamp(distance / 30, 0.75, 1.1);
     htmlRef.current.style.transform = `scale(${dynamicScale})`;
   });
 
+  const isViable = site.isViable !== false;
+  const tier = site.viabilityTier ?? (isViable ? "optimal" : "critical");
+
   return (
     <group position={[p.x, y, p.z]}>
-      {/* Línea vertical en crema lunar con brillo sutil */}
+      {/* Mástil / poste vertical en crema lunar */}
       <mesh position={[0, currentHeight / 2, 0]}>
         <cylinderGeometry args={[radius, radius, currentHeight, 8]} />
         <meshStandardMaterial
           color="#D9CEC5"
           emissive="#A6948A"
-          emissiveIntensity={1.2}
-          roughness={0.2}
-          metalness={0}
+          emissiveIntensity={0.8}
+          roughness={0.25}
+          metalness={0.05}
           toneMapped={false}
         />
       </mesh>
 
-      {/* Etiqueta flotante: zIndexRange=[5, 0] para quedar siempre por debajo de menús (z-20/z-30) */}
+      {/* Nodo esférico luminoso en la unión del poste con la etiqueta */}
+      <mesh position={[0, currentHeight, 0]}>
+        <sphereGeometry args={[radius * 1.5, 12, 12]} />
+        <meshBasicMaterial
+          color={
+            tier === "optimal"
+              ? "#34d399"
+              : tier === "marginal"
+              ? "#fbbf24"
+              : "#fb7185"
+          }
+        />
+      </mesh>
+
+      {/* Etiqueta HTML idéntica a la cápsula de MoonGlobe:
+          misma forma rounded-full, tipografía Inter, padding, fondo con glassmorphism,
+          indicador circular del estado de viabilidad e interacción hover/active */}
       <Html
         position={[0, currentHeight + 0.35, 0]}
         center
@@ -89,31 +105,37 @@ const SiteMarkerItem: React.FC<SiteMarkerItemProps> = ({
       >
         <div
           ref={htmlRef}
-          onClick={() => onSelectSite?.(site)}
-          className={`flex w-[10rem] flex-col items-center text-center font-mono font-normal select-none origin-bottom transition-all duration-150 ${
-            onSelectSite ? "cursor-pointer" : ""
-          }`}
-          style={{
-            textShadow:
-              "0 0 3px #000000, 0 1px 5px #000000, 0 0 8px #000000, 0 0 14px rgba(0,0,0,0.95)",
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectSite?.(site);
           }}
+          className="p-1 cursor-pointer select-none origin-bottom transition-transform duration-150"
         >
-          {/* Nombre de la zona: fuente Space Mono Regular (400), ancho 10rem */}
-          <span
-            className={`block w-full break-words text-[0.75rem] font-normal leading-tight tracking-wider uppercase transition-colors ${
-              active ? "text-[#D9CEC5]" : "text-[#FAFAFA]"
+          <div
+            className={`px-3 py-1 rounded-full border backdrop-blur-md transition-all duration-200 whitespace-nowrap shadow-lg flex items-center gap-1.5 cursor-pointer ${
+              isHovered
+                ? "bg-[#FAF9F7] text-[#09080C] border-white scale-105 font-bold shadow-white/30 ring-2 ring-white/50"
+                : active
+                ? "bg-[#D9CEC5]/95 text-[#09080C] border-white font-medium scale-105"
+                : "bg-[#0D0D0D]/85 text-[#FAFAFA] border-white/30 font-normal hover:bg-[#1C1C20] hover:border-white/60"
             }`}
           >
-            {site.name}
-          </span>
-
-          {/* Tamaño en km: tamaño de fuente proporcional en 'em' respecto al rem del título */}
-          <span
-            className="block w-full font-normal tracking-widest text-[#A6948A] leading-tight mt-0.5"
-            style={{ fontSize: "0.75em" }}
-          >
-            ⌀ {zoneKm} KM
-          </span>
+            {/* Punto indicador de estatus idéntico a MoonGlobe */}
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                tier === "optimal"
+                  ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
+                  : tier === "marginal"
+                  ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]"
+                  : "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.8)]"
+              }`}
+            />
+            <span className="font-sans text-[11.5px] leading-tight tracking-tight">
+              {site.name}
+            </span>
+          </div>
         </div>
       </Html>
     </group>

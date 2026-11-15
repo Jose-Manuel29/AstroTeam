@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   Sun,
   Thermometer,
@@ -42,6 +42,16 @@ export interface CriteriaIconListCardProps {
   items: CriterionIconListItem[];
   onToggleItem?: (id: string) => void;
   footerAction?: React.ReactNode;
+  /** Etiqueta de acción en la cabecera (ej. "see more") */
+  actionLabel?: string;
+  /** Etiqueta de acción cuando está expandido (ej. "see less") */
+  expandedActionLabel?: string;
+  /** Estado de expansión */
+  isExpanded?: boolean;
+  /** Callback para alternar estado de expansión */
+  onToggleExpand?: () => void;
+  /** Elemento de acción personalizado */
+  action?: React.ReactNode;
   className?: string;
 }
 
@@ -58,8 +68,33 @@ export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
   items,
   onToggleItem,
   footerAction,
+  actionLabel = "see more",
+  expandedActionLabel = "see less",
+  isExpanded,
+  onToggleExpand,
+  action,
   className = "w-full",
 }) => {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+
+    const checkOverflow = () => {
+      const isOverflowing = el.scrollHeight > el.clientHeight + 1;
+      setHasOverflow(isOverflowing);
+    };
+
+    checkOverflow();
+
+    const ro = new ResizeObserver(checkOverflow);
+    ro.observe(el);
+
+    return () => ro.disconnect();
+  }, [items]);
+
   const renderIcon = (icon: CriterionIconType | React.ReactNode) => {
     if (typeof icon !== "string") return icon;
 
@@ -101,9 +136,21 @@ export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
         subtitle={subtitle}
         align={headerAlign}
         size="md"
+        action={
+          action ||
+          (onToggleExpand && (hasOverflow || isExpanded) ? (
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              className="font-heading font-light text-[clamp(0.65rem,1.2vh,0.75rem)] leading-tight underline text-palette-cream/80 hover:text-[#FAFAFA] transition-colors bg-transparent border-0 cursor-pointer p-0"
+            >
+              {isExpanded ? expandedActionLabel : actionLabel}
+            </button>
+          ) : undefined)
+        }
       />
 
-      <HudCardBody className="gap-[clamp(0.12rem,0.4vh,0.32rem)] max-h-[clamp(115px,24vh,230px)] overflow-y-auto overflow-x-hidden pr-0.5">
+      <HudCardBody ref={bodyRef} className="gap-[clamp(0.12rem,0.4vh,0.32rem)] max-h-[clamp(115px,24vh,230px)] overflow-y-auto overflow-x-hidden pr-0.5 shrink-0">
         {items.map((item) => {
           const isActive = item.active !== false;
           const isSelected = Boolean(item.selected);
@@ -165,7 +212,11 @@ export const CriteriaIconListCard: React.FC<CriteriaIconListCardProps> = ({
         })}
       </HudCardBody>
 
-      {footerAction && <div className="pt-[0.2vh] w-full">{footerAction}</div>}
+      {footerAction && (
+        <div className="pt-[0.2vh] w-full min-h-0 flex-1 flex flex-col overflow-hidden">
+          {footerAction}
+        </div>
+      )}
     </HudCard>
   );
 };

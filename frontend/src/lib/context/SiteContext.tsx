@@ -17,6 +17,8 @@ export interface PresetSite {
   description?: string;
   default_horizon_elevation_deg?: number;
   horizon_profile?: HorizonPoint[];
+  viabilityTier?: "optimal" | "marginal" | "critical";
+  isViable?: boolean;
 }
 
 interface SiteContextValue {

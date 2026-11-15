@@ -54,7 +54,7 @@ export const App: React.FC = () => {
     return (
       <main className="flex h-screen w-screen items-center justify-center bg-[#0D0D0D] text-slate-100">
         <p className="font-mono text-sm text-[#D9CEC5]">
-          Conectando con el catálogo lunar…
+          Connecting to lunar catalog…
         </p>
       </main>
     );
@@ -65,17 +65,17 @@ export const App: React.FC = () => {
       <main className="flex h-screen w-screen items-center justify-center bg-[#0D0D0D] px-6 text-slate-100">
         <section className="max-w-lg rounded-2xl border border-white/15 bg-slate-950/80 p-6 text-center">
           <h1 className="mb-3 text-lg font-semibold">
-            No se pudieron cargar los sitios
+            Failed to load sites
           </h1>
           <p role="alert" className="mb-5 text-sm text-[#D9CEC5]">
-            {sitesError ?? "La API respondió con un catálogo vacío."}
+            {sitesError ?? "The API returned an empty catalog."}
           </p>
           <button
             type="button"
             onClick={() => setReloadKey((key) => key + 1)}
             className="rounded-lg border border-white/25 px-4 py-2 text-sm hover:bg-white/10"
           >
-            Reintentar
+            Retry
           </button>
         </section>
       </main>

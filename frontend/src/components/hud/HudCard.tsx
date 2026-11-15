@@ -136,18 +136,21 @@ export interface HudCardBodyProps {
 }
 
 /**
- * Cuerpo flexible para inyección de datos en tarjetas HUD
+ * Cuerpo flexible para inyección de datos en tarjetas HUD (con soporte para ref)
  */
-export const HudCardBody: React.FC<HudCardBodyProps> = ({
-  className = "",
-  children,
-}) => {
-  return (
-    <div className={`flex flex-col gap-[clamp(0.3rem,0.85vh,0.625rem)] w-full grow ${className}`}>
-      {children}
-    </div>
-  );
-};
+export const HudCardBody = React.forwardRef<HTMLDivElement, HudCardBodyProps>(
+  ({ className = "", children }, ref) => {
+    return (
+      <div
+        ref={ref}
+        className={`flex flex-col gap-[clamp(0.3rem,0.85vh,0.625rem)] w-full grow ${className}`}
+      >
+        {children}
+      </div>
+    );
+  }
+);
+HudCardBody.displayName = "HudCardBody";
 
 export interface HudCardFooterProps {
   className?: string;

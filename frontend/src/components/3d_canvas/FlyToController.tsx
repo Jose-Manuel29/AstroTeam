@@ -5,7 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import type { PresetSite } from "@/lib/context/SiteContext";
-import { latLonToPlane } from "@/lib/geo/polarStereo";
+import { latLonToPlane, TERRAIN } from "@/lib/geo/polarStereo";
 import { useTerrainHeight } from "@/lib/geo/useTerrainHeight";
 
 export interface FlyToControllerProps {
@@ -16,7 +16,7 @@ export interface FlyToControllerProps {
   offset?: [number, number, number];
   /** Factor de interpolación por frame (normalizado a 60 fps). */
   lerpFactor?: number;
-  /** Posición de destino de la cámara cuando no hay sitio seleccionado (overview general). */
+  /** Posición de destino de la cámara cuando no hay sitio seleccionado (overview general elevado y alejado). */
   overviewCamera?: [number, number, number];
   overviewTarget?: [number, number, number];
   /** Rotación aplicada al terreno para transformar el target a coordenadas mundiales. */
@@ -25,26 +25,40 @@ export interface FlyToControllerProps {
   terrainPosition?: [number, number, number];
   /** Offset vertical o tridimensional aplicado al punto de enfoque (target) para encuadre táctico. */
   targetOffset?: [number, number, number];
+  /** Tamaño del plano del terreno (por defecto TERRAIN.size = 100). */
+  terrainSize?: number;
+}
+
+interface ActiveAnimation {
+  startTime: number;
+  duration: number;
+  startPos: THREE.Vector3;
+  startTarget: THREE.Vector3;
+  endPos: THREE.Vector3;
+  endTarget: THREE.Vector3;
 }
 
 /**
- * Interpola OrbitControls.target y camera.position hacia el sitio seleccionado.
- * Requiere <OrbitControls makeDefault />. Al llegar libera la cámara al usuario.
+ * Interpola suavemente OrbitControls.target y camera.position hacia el sitio seleccionado o hacia la vista general.
+ * Utiliza una curva cúbica easeInOutCubic para lograr una aceleración y frenado cinematográfico.
+ * Requiere <OrbitControls makeDefault />. Si el usuario interactúa, libera el control inmediatamente.
  */
 export const FlyToController: React.FC<FlyToControllerProps> = ({
   site,
   flightId,
   offset = [6, 8, 10],
   lerpFactor = 0.06,
-  overviewCamera = [0, 52, 95],
-  overviewTarget = [0, -10, 0],
+  overviewCamera = [48, 42, 88],
+  overviewTarget = [0, -14, 0],
   terrainRotation,
   terrainPosition,
   targetOffset,
+  terrainSize,
 }) => {
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const heightAt = useTerrainHeight();
   const flying = useRef(false);
+  const animRef = useRef<ActiveAnimation | null>(null);
 
   const goal = useMemo(() => {
     if (!site) {
@@ -56,7 +70,7 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
       }
       return null;
     }
-    const p = latLonToPlane(site.lat, site.lon);
+    const p = latLonToPlane(site.lat, site.lon, terrainSize ?? TERRAIN.size);
     if (!p.inside) return null;
     const target = new THREE.Vector3(p.x, heightAt(p.u, p.v), p.z);
     if (terrainRotation) {
@@ -92,32 +106,63 @@ export const FlyToController: React.FC<FlyToControllerProps> = ({
     targetOffset?.[0],
     targetOffset?.[1],
     targetOffset?.[2],
+    terrainSize,
   ]);
 
   useEffect(() => {
-    flying.current = goal !== null;
+    if (!goal) return;
+    flying.current = true;
+    animRef.current = null; // Se inicializa en el primer frame con las coordenadas reales del momento
   }, [goal, flightId]);
 
-  // Si el usuario arrastra durante el vuelo, se cancela la animación.
+  // Si el usuario arrastra durante el vuelo, se cancela la animación y toma control inmediato
   useEffect(() => {
     if (!controls) return;
-    const cancel = () => (flying.current = false);
+    const cancel = () => {
+      flying.current = false;
+      animRef.current = null;
+    };
     controls.addEventListener("start", cancel);
     return () => controls.removeEventListener("start", cancel);
   }, [controls]);
 
-  useFrame((state, delta) => {
+  useFrame((state) => {
     if (!flying.current || !goal || !controls) return;
-    const a = 1 - Math.pow(1 - lerpFactor, delta * 60);
-    controls.target.lerp(goal.target, a);
-    state.camera.position.lerp(goal.camera, a);
+
+    if (!animRef.current) {
+      const startPos = state.camera.position.clone();
+      const startTarget = controls.target.clone();
+      const dist = startPos.distanceTo(goal.camera);
+      // Duración calculada dinámicamente según la distancia (mínimo 900ms, máximo 1300ms)
+      const duration = Math.min(1300, Math.max(900, dist * 12));
+
+      animRef.current = {
+        startTime: performance.now(),
+        duration,
+        startPos,
+        startTarget,
+        endPos: goal.camera.clone(),
+        endTarget: goal.target.clone(),
+      };
+    }
+
+    const anim = animRef.current;
+    const elapsed = performance.now() - anim.startTime;
+    const rawT = Math.min(1, Math.max(0, elapsed / anim.duration));
+
+    // Curva cúbica suave (easeInOutCubic)
+    const t =
+      rawT < 0.5
+        ? 4 * rawT * rawT * rawT
+        : 1 - Math.pow(-2 * rawT + 2, 3) / 2;
+
+    state.camera.position.lerpVectors(anim.startPos, anim.endPos, t);
+    controls.target.lerpVectors(anim.startTarget, anim.endTarget, t);
     controls.update();
 
-    if (
-      state.camera.position.distanceToSquared(goal.camera) < 1e-3 &&
-      controls.target.distanceToSquared(goal.target) < 1e-3
-    ) {
+    if (rawT >= 1) {
       flying.current = false;
+      animRef.current = null;
     }
   });
 
