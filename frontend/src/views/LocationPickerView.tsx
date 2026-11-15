@@ -8,6 +8,7 @@ import { MoonGlobe } from "../components/3d_canvas/MoonGlobe";
 import { LandingSite } from "../types";
 import { FigmaDiamondShadow } from "../components/ui/FigmaDiamondShadow";
 import { FigmaLandingButton } from "../components/ui/FigmaLandingButton";
+import { AstroTeamLogo } from "../components/ui/AstroTeamLogoSvg";
 import {
   CriteriaSlidersCard,
   CriterionSliderItem,
@@ -736,15 +737,17 @@ export const LocationPickerView: React.FC<LocationPickerViewProps> = ({
             } as React.CSSProperties
           }
         >
-          <h1
-            className="font-display font-normal leading-none tracking-normal text-[#FFFFFF] select-text text-center"
+          <div
+            id="landing-hero-title"
+            className="select-text flex items-center justify-center"
             style={{
-              fontSize: "var(--title-fs)",
               width: "min(94.11vh, 95vw)",
+              aspectRatio: "928 / 94",
             }}
           >
-            astRo teaM
-          </h1>
+            <h1 className="sr-only">astRo teaM</h1>
+            <AstroTeamLogo fill="#FFFFFF" className="w-full h-auto block" />
+          </div>
           <p
             className="font-sans font-normal text-[#FFFFFF] text-center mt-6 sm:mt-8 md:mt-10"
             style={{
